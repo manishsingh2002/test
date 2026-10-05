@@ -1,5 +1,13 @@
-import type { ReactNode } from 'react';
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import './index.css';
+import App from './App';
+import ErrorBoundary from './components/ErrorBoundary';
 
-export default function AuthGate({ children }: { children: ReactNode }) {
-  return <>{children}</>;
-}
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
+  </React.StrictMode>
+);
