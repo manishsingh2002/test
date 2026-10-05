@@ -1,0 +1,499 @@
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { Paper, QuestionJSON, ExamSession, AttemptQuestion } from '../types';
+import { saveExamSession, getExamSession, clearExamSession, saveAttempt, addOrUpdateMistake } from '../services/database';
+import { gradeQuestions, formatTime } from '../utils/grader';
+import { Clock, ChevronLeft, ChevronRight, Flag, FlagOff, Eraser, Send, AlertTriangle, CheckCircle, XCircle, MinusCircle, Bookmark, BookmarkCheck, Menu, X } from 'lucide-react';
+
+interface ExamInterfaceProps {
+  paper: Paper;
+  userId?: string;
+  mode?: 'exam' | 'practice';
+  onComplete: (attemptId: string) => void;
+  onExit: () => void;
+}
+
+export default function ExamInterface({ paper, userId, mode = 'exam', onComplete, onExit }: ExamInterfaceProps) {
+  const questions = paper.raw_json.questions;
+  const [currentQ, setCurrentQ] = useState(0);
+  const [answers, setAnswers] = useState<Record<number, number | null>>({});
+  const [marked, setMarked] = useState<Record<number, boolean>>({});
+  const [qTimes, setQTimes] = useState<Record<number, number>>({});
+  const [timeLeft, setTimeLeft] = useState(paper.duration_minutes * 60);
+  const [startTime] = useState(Date.now());
+  const [showSubmit, setShowSubmit] = useState(false);
+  const [showPalette, setShowPalette] = useState(false);
+  const [showLearning, setShowLearning] = useState<number | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const startTimeRef = useRef(startTime);
+  const lastQRef = useRef(0);
+
+  // Resume from saved session
+  useEffect(() => {
+    const saved = getExamSession() as ExamSession | null;
+    if (saved && saved.paperId === paper.id) {
+      setAnswers(saved.answers || {});
+      setMarked(saved.markedForReview || {});
+      setQTimes(saved.questionTimes || {});
+      setCurrentQ(saved.currentQuestion || 0);
+      const elapsed = Math.floor((Date.now() - saved.startTime) / 1000);
+      setTimeLeft(Math.max(0, saved.durationSeconds - elapsed));
+      startTimeRef.current = saved.startTime;
+    }
+  }, [paper.id]);
+
+  // Save session periodically
+  useEffect(() => {
+    const interval = setInterval(() => {
+      saveExamSession({
+        paperId: paper.id,
+        paperTitle: paper.title,
+        questions,
+        startTime: startTimeRef.current,
+        durationSeconds: paper.duration_minutes * 60,
+        answers,
+        markedForReview: marked,
+        questionTimes: qTimes,
+        currentQuestion: currentQ,
+        mode,
+      } as ExamSession);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [answers, marked, qTimes, currentQ, paper, questions, mode]);
+
+  // Track time per question
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setQTimes(prev => ({
+        ...prev,
+        [lastQRef.current]: (prev[lastQRef.current] || 0) + 1,
+      }));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Update last question ref
+  useEffect(() => { lastQRef.current = currentQ; }, [currentQ]);
+
+  // Timer countdown
+  useEffect(() => {
+    if (isSubmitting) return;
+    const interval = setInterval(() => {
+      setTimeLeft(prev => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          handleSubmit(true);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isSubmitting]);
+
+  // Warn before leaving
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, []);
+
+  // Keyboard navigation
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowRight' || e.key === 'n') setCurrentQ(prev => Math.min(questions.length - 1, prev + 1));
+      if (e.key === 'ArrowLeft' || e.key === 'p') setCurrentQ(prev => Math.max(0, prev - 1));
+      if (e.key >= '1' && e.key <= '4') {
+        const idx = parseInt(e.key) - 1;
+        if (idx < questions[currentQ].options.length) {
+          selectAnswer(idx);
+        }
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [currentQ, questions]);
+
+  const selectAnswer = (optionIdx: number) => {
+    setAnswers(prev => ({ ...prev, [currentQ]: optionIdx }));
+  };
+
+  const clearAnswer = () => {
+    setAnswers(prev => ({ ...prev, [currentQ]: null }));
+  };
+
+  const toggleReview = () => {
+    setMarked(prev => ({ ...prev, [currentQ]: !prev[currentQ] }));
+  };
+
+  const navigateTo = (idx: number) => {
+    setCurrentQ(idx);
+    setShowPalette(false);
+  };
+
+  const handleSubmit = useCallback(async (autoSubmit = false) => {
+    if (isSubmitting) return;
+    if (!autoSubmit && !showSubmit) {
+      setShowSubmit(true);
+      return;
+    }
+    setIsSubmitting(true);
+
+    const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
+    const { questions: gradedQs, score, correct, incorrect, unanswered } = gradeQuestions(questions, answers, paper.negative_marking);
+
+    // Add time spent
+    const finalQs: AttemptQuestion[] = gradedQs.map((q, idx) => ({
+      ...q,
+      time_spent_seconds: qTimes[idx] || 0,
+      marked_for_review: marked[idx] || false,
+    }));
+
+    const attempt = await saveAttempt({
+      user_id: userId || 'guest',
+      paper_id: paper.id,
+      paper_title: paper.title,
+      started_at: new Date(startTimeRef.current).toISOString(),
+      completed_at: new Date().toISOString(),
+      score,
+      total_marks: paper.total_marks,
+      accuracy: (correct + incorrect) > 0 ? Math.round((correct / (correct + incorrect)) * 100) : 0,
+      attempted_count: correct + incorrect,
+      correct_count: correct,
+      incorrect_count: incorrect,
+      unanswered_count: unanswered,
+      time_spent_seconds: elapsed,
+      is_complete: true,
+      mode,
+    }, finalQs);
+
+    // Record mistakes
+    for (const q of finalQs) {
+      if (q.is_correct === false && q.selected_answer !== null) {
+        const question = questions[q.question_index];
+        await addOrUpdateMistake({
+          user_id: userId || 'guest',
+          paper_id: paper.id,
+          paper_title: paper.title,
+          question_id: question.id,
+          question_text: question.question,
+          subject: question.subject || '',
+          topic: question.topic || '',
+          selected_answer: q.selected_answer,
+          correct_answer: question.answerIndex,
+          options: question.options,
+          solution: question.solution,
+          shortcut: question.shortcut,
+          hint: question.hint,
+          learning_suggestion: question.learningSuggestion,
+          resolved: false,
+        }, userId);
+      }
+    }
+
+    clearExamSession();
+    onComplete(attempt.id);
+  }, [answers, qTimes, marked, questions, paper, userId, mode, onComplete, isSubmitting, showSubmit]);
+
+  const q = questions[currentQ];
+  const isTimerWarning = timeLeft < 300;
+  const isTimerCritical = timeLeft < 60;
+
+  const getStatusCounts = () => {
+    let answered = 0, markedCount = 0, unanswered = 0, notVisited = 0;
+    questions.forEach((_, idx) => {
+      if (marked[idx]) { markedCount++; return; }
+      if (answers[idx] !== undefined && answers[idx] !== null) { answered++; }
+      else if (idx <= Math.max(currentQ, ...Object.keys(answers).map(Number))) { unanswered++; }
+      else { notVisited++; }
+    });
+    return { answered, marked: markedCount, unanswered, notVisited };
+  };
+
+  const counts = getStatusCounts();
+
+  // Group questions by subject for palette
+  const subjectGroups = new Map<string, number[]>();
+  questions.forEach((q, idx) => {
+    const subj = q.subject || 'General';
+    if (!subjectGroups.has(subj)) subjectGroups.set(subj, []);
+    subjectGroups.get(subj)!.push(idx);
+  });
+
+  const getQStatus = (idx: number): 'answered' | 'marked' | 'unanswered' | 'not_visited' => {
+    if (marked[idx]) return 'marked';
+    if (answers[idx] !== undefined && answers[idx] !== null) return 'answered';
+    const maxVisited = Math.max(currentQ, ...Object.keys(answers).map(Number), -1);
+    if (idx <= maxVisited) return 'unanswered';
+    return 'not_visited';
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      {/* Top Bar */}
+      <div className="sticky top-0 z-30 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 py-2 sm:py-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+              <button onClick={() => setShowPalette(!showPalette)} className="lg:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+                <Menu size={20} />
+              </button>
+              <div className="min-w-0">
+                <h1 className="text-sm sm:text-base font-bold text-gray-900 dark:text-white truncate">{paper.title}</h1>
+                <p className="text-xs text-gray-500 dark:text-gray-400 hidden sm:block">
+                  Q{currentQ + 1}/{questions.length} • {q.subject} • {q.topic}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 sm:gap-4">
+              <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-mono text-sm sm:text-base font-bold ${
+                isTimerCritical ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 animate-pulse' :
+                isTimerWarning ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400' :
+                'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white'
+              }`}>
+                <Clock size={16} />
+                <span>{formatTime(timeLeft)}</span>
+              </div>
+              <button onClick={() => setShowSubmit(true)} className="flex items-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors text-sm">
+                <Send size={16} />
+                <span className="hidden sm:inline">Submit</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-6">
+        <div className="flex gap-6">
+          {/* Left: Question Palette (Desktop) */}
+          <div className={`fixed inset-0 z-40 lg:static lg:z-auto lg:block ${showPalette ? 'block' : 'hidden'}`}>
+            {showPalette && <div className="fixed inset-0 bg-black/30 lg:hidden" onClick={() => setShowPalette(false)} />}
+            <div className={`relative z-50 w-72 h-full bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 overflow-y-auto p-4 lg:w-64 lg:shrink-0 lg:rounded-xl lg:border lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)]`}>
+              <div className="flex items-center justify-between mb-4 lg:hidden">
+                <h3 className="font-bold text-gray-900 dark:text-white">Question Palette</h3>
+                <button onClick={() => setShowPalette(false)}><X size={20} /></button>
+              </div>
+              <h3 className="font-bold text-gray-900 dark:text-white mb-3 hidden lg:block">Question Palette</h3>
+
+              {/* Legend */}
+              <div className="grid grid-cols-2 gap-1.5 mb-4 text-xs">
+                <div className="flex items-center gap-1.5"><span className="w-4 h-4 rounded bg-green-500 shrink-0"></span><span className="text-gray-600 dark:text-gray-400">Answered ({counts.answered})</span></div>
+                <div className="flex items-center gap-1.5"><span className="w-4 h-4 rounded bg-purple-500 shrink-0"></span><span className="text-gray-600 dark:text-gray-400">Review ({counts.marked})</span></div>
+                <div className="flex items-center gap-1.5"><span className="w-4 h-4 rounded bg-red-500 shrink-0"></span><span className="text-gray-600 dark:text-gray-400">Visited ({counts.unanswered})</span></div>
+                <div className="flex items-center gap-1.5"><span className="w-4 h-4 rounded bg-gray-300 dark:bg-gray-600 shrink-0"></span><span className="text-gray-600 dark:text-gray-400">Not visited ({counts.notVisited})</span></div>
+              </div>
+
+              {/* Subject Groups */}
+              {Array.from(subjectGroups.entries()).map(([subject, indices]) => (
+                <div key={subject} className="mb-3">
+                  <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5 truncate">{subject}</p>
+                  <div className="grid grid-cols-5 gap-1.5">
+                    {indices.map(idx => {
+                      const status = getQStatus(idx);
+                      const isCurrent = idx === currentQ;
+                      let bg = 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300';
+                      if (status === 'answered') bg = 'bg-green-500 text-white';
+                      else if (status === 'marked') bg = 'bg-purple-500 text-white';
+                      else if (status === 'unanswered') bg = 'bg-red-500 text-white';
+                      return (
+                        <button key={idx} onClick={() => navigateTo(idx)}
+                          className={`w-8 h-8 rounded text-xs font-medium flex items-center justify-center transition-all ${bg} ${isCurrent ? 'ring-2 ring-indigo-500 ring-offset-1 dark:ring-offset-gray-800 scale-110' : 'hover:scale-105'}`}>
+                          {idx + 1}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Center: Question Content */}
+          <div className="flex-1 min-w-0">
+            {/* Question Card */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 sm:p-6 mb-4">
+              {/* Question Header */}
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <span className="flex items-center justify-center w-8 h-8 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-full text-sm font-bold shrink-0">
+                    {currentQ + 1}
+                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    <span className="px-2 py-0.5 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded text-xs font-medium">{q.subject}</span>
+                    <span className="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded text-xs">{q.topic}</span>
+                    {q.difficulty && <span className={`px-2 py-0.5 rounded text-xs font-medium ${q.difficulty === 'easy' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' : q.difficulty === 'hard' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400' : 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400'}`}>{q.difficulty}</span>}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                  <span>+{q.marks}</span>
+                  {q.negativeMarks !== undefined && <span className="text-red-500">-{q.negativeMarks}</span>}
+                </div>
+              </div>
+
+              {/* Passage (if any) */}
+              {q.passage && (
+                <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg border-l-4 border-indigo-500">
+                  <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{q.passage}</p>
+                </div>
+              )}
+
+              {/* Question Text */}
+              <p className="text-base sm:text-lg text-gray-900 dark:text-white mb-6 leading-relaxed whitespace-pre-wrap">{q.question}</p>
+
+              {/* Image */}
+              {q.image && (
+                <div className="mb-4">
+                  <img src={q.image} alt="Question" className="max-w-full h-auto rounded-lg border border-gray-200 dark:border-gray-700" />
+                </div>
+              )}
+
+              {/* Formula */}
+              {q.formula && (
+                <div className="mb-4 p-2 bg-yellow-50 dark:bg-yellow-900/10 rounded-lg text-sm font-mono text-yellow-800 dark:text-yellow-300">
+                  📐 {q.formula}
+                </div>
+              )}
+
+              {/* Options */}
+              <div className="space-y-2.5">
+                {q.options.map((opt, idx) => {
+                  const isSelected = answers[currentQ] === idx;
+                  return (
+                    <button key={idx} onClick={() => selectAnswer(idx)}
+                      className={`w-full text-left p-3 sm:p-4 rounded-xl border-2 transition-all ${
+                        isSelected
+                          ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20 shadow-sm'
+                          : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                      }`}>
+                      <div className="flex items-center gap-3">
+                        <span className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-bold shrink-0 ${
+                          isSelected ? 'bg-indigo-500 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                        }`}>
+                          {String.fromCharCode(65 + idx)}
+                        </span>
+                        <span className="text-gray-900 dark:text-white text-sm sm:text-base">{opt}</span>
+                        {isSelected && <CheckCircle size={18} className="ml-auto text-indigo-500 shrink-0" />}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Practice Mode: Learning Section */}
+            {mode === 'practice' && answers[currentQ] !== undefined && answers[currentQ] !== null && (
+              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 sm:p-6 mb-4">
+                <button onClick={() => setShowLearning(showLearning === currentQ ? null : currentQ)} className="w-full flex items-center justify-between">
+                  <span className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                    {answers[currentQ] === q.answerIndex ? <CheckCircle size={18} className="text-green-500" /> : <XCircle size={18} className="text-red-500" />}
+                    {answers[currentQ] === q.answerIndex ? 'Correct!' : 'Incorrect — Learn from this'}
+                  </span>
+                  <span className="text-xs text-gray-500">{showLearning === currentQ ? 'Hide' : 'Show'} explanation</span>
+                </button>
+                {showLearning === currentQ && (
+                  <div className="mt-4 space-y-3 text-sm">
+                    {q.hint && (
+                      <div className="p-3 bg-blue-50 dark:bg-blue-900/10 rounded-lg border-l-4 border-blue-500">
+                        <p className="font-medium text-blue-800 dark:text-blue-300 mb-1">💡 Hint</p>
+                        <p className="text-blue-700 dark:text-blue-400">{q.hint}</p>
+                      </div>
+                    )}
+                    {q.solution && (
+                      <div className="p-3 bg-green-50 dark:bg-green-900/10 rounded-lg border-l-4 border-green-500">
+                        <p className="font-medium text-green-800 dark:text-green-300 mb-1">📖 Solution</p>
+                        <p className="text-green-700 dark:text-green-400 whitespace-pre-wrap">{q.solution}</p>
+                      </div>
+                    )}
+                    {q.shortcut && (
+                      <div className="p-3 bg-purple-50 dark:bg-purple-900/10 rounded-lg border-l-4 border-purple-500">
+                        <p className="font-medium text-purple-800 dark:text-purple-300 mb-1">⚡ Shortcut</p>
+                        <p className="text-purple-700 dark:text-purple-400">{q.shortcut}</p>
+                      </div>
+                    )}
+                    {q.learningSuggestion && (
+                      <div className="p-3 bg-orange-50 dark:bg-orange-900/10 rounded-lg border-l-4 border-orange-500">
+                        <p className="font-medium text-orange-800 dark:text-orange-300 mb-1">🎯 Learning Suggestion</p>
+                        <p className="text-orange-700 dark:text-orange-400">{q.learningSuggestion}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Navigation Buttons */}
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex gap-2">
+                <button onClick={() => setCurrentQ(prev => Math.max(0, prev - 1))} disabled={currentQ === 0}
+                  className="flex items-center gap-1 px-3 sm:px-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-sm">
+                  <ChevronLeft size={16} /> Previous
+                </button>
+                <button onClick={() => setCurrentQ(prev => Math.min(questions.length - 1, prev + 1))} disabled={currentQ === questions.length - 1}
+                  className="flex items-center gap-1 px-3 sm:px-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-sm">
+                  Next <ChevronRight size={16} />
+                </button>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={toggleReview}
+                  className={`flex items-center gap-1 px-3 py-2 rounded-lg text-sm transition-colors ${
+                    marked[currentQ] ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400' : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                  }`}>
+                  {marked[currentQ] ? <FlagOff size={14} /> : <Flag size={14} />}
+                  {marked[currentQ] ? 'Unmark' : 'Review'}
+                </button>
+                <button onClick={clearAnswer}
+                  className="flex items-center gap-1 px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm">
+                  <Eraser size={14} /> Clear
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Submit Confirmation Modal */}
+      {showSubmit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 max-w-md w-full shadow-2xl">
+            <div className="flex items-center gap-3 mb-4">
+              <AlertTriangle size={24} className="text-yellow-500" />
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white">Submit Test?</h3>
+            </div>
+            <div className="mb-6 space-y-2 text-sm">
+              <div className="flex justify-between py-1.5 border-b border-gray-100 dark:border-gray-700">
+                <span className="text-gray-600 dark:text-gray-400">Answered</span>
+                <span className="font-medium text-green-600">{counts.answered}</span>
+              </div>
+              <div className="flex justify-between py-1.5 border-b border-gray-100 dark:border-gray-700">
+                <span className="text-gray-600 dark:text-gray-400">Marked for Review</span>
+                <span className="font-medium text-purple-600">{counts.marked}</span>
+              </div>
+              <div className="flex justify-between py-1.5 border-b border-gray-100 dark:border-gray-700">
+                <span className="text-gray-600 dark:text-gray-400">Not Answered</span>
+                <span className="font-medium text-red-600">{counts.unanswered}</span>
+              </div>
+              <div className="flex justify-between py-1.5 border-b border-gray-100 dark:border-gray-700">
+                <span className="text-gray-600 dark:text-gray-400">Not Visited</span>
+                <span className="font-medium text-gray-500">{counts.notVisited}</span>
+              </div>
+              <div className="flex justify-between py-1.5 font-semibold">
+                <span className="text-gray-900 dark:text-white">Total Questions</span>
+                <span className="text-gray-900 dark:text-white">{questions.length}</span>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setShowSubmit(false)} className="flex-1 px-4 py-2.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors font-medium">
+                Continue Exam
+              </button>
+              <button onClick={() => handleSubmit(false)} className="flex-1 px-4 py-2.5 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors font-semibold">
+                Submit Test
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

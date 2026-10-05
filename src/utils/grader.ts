@@ -1,94 +1,139 @@
-import { TestPaper, UserAnswers, QuestionResult, TestAttempt } from '../types';
+import { QuestionJSON, Attempt, AttemptQuestion, PaperJSON, SubjectPerformance, TopicPerformance } from '../types';
 
-export function gradeTest(paper: TestPaper, userAnswers: UserAnswers, timeTaken: string): TestAttempt {
-  const questionWiseResult: QuestionResult[] = [];
-  let correct = 0;
-  let wrong = 0;
-  let skipped = 0;
+export function gradeQuestions(
+  questions: QuestionJSON[],
+  answers: Record<number, number | null>,
+  negativeMarking: number
+): { questions: AttemptQuestion[]; score: number; correct: number; incorrect: number; unanswered: number } {
   let score = 0;
+  let correct = 0;
+  let incorrect = 0;
+  let unanswered = 0;
 
-  paper.questions.forEach((question) => {
-    const userAnswer = userAnswers[question.id] ?? null;
-    let status: 'correct' | 'wrong' | 'skipped';
-    let marksAwarded = 0;
+  const graded: AttemptQuestion[] = questions.map((q, idx) => {
+    const selectedAnswer = answers[idx] ?? null;
+    const isAnswered = selectedAnswer !== null;
 
-    if (userAnswer === null || (Array.isArray(userAnswer) && userAnswer.length === 0)) {
-      status = 'skipped';
-      skipped++;
-    } else if (question.questionType === 'multiple_choice') {
-      const correctAnswers = (question.correctAnswer as string[]).sort();
-      const userAnswersSorted = (userAnswer as string[]).sort();
-
-      const isExactMatch =
-        correctAnswers.length === userAnswersSorted.length &&
-        correctAnswers.every((ans, idx) => ans === userAnswersSorted[idx]);
-
-      if (isExactMatch) {
-        status = 'correct';
-        marksAwarded = question.marks;
-        correct++;
-      } else {
-        status = 'wrong';
-        marksAwarded = -paper.negativeMarking;
-        wrong++;
-      }
-    } else {
-      // single_choice or true_false
-      if (userAnswer === question.correctAnswer) {
-        status = 'correct';
-        marksAwarded = question.marks;
-        correct++;
-      } else {
-        status = 'wrong';
-        marksAwarded = -paper.negativeMarking;
-        wrong++;
-      }
+    if (!isAnswered) {
+      unanswered++;
+      return {
+        id: '',
+        attempt_id: '',
+        question_id: q.id,
+        question_index: idx,
+        selected_answer: null,
+        is_correct: null,
+        time_spent_seconds: 0,
+        marked_for_review: false,
+        is_answered: false,
+      };
     }
 
-    score += marksAwarded;
+    const isCorrect = selectedAnswer === q.answerIndex;
+    if (isCorrect) {
+      correct++;
+      score += q.marks;
+    } else {
+      incorrect++;
+      score -= (q.negativeMarks ?? negativeMarking);
+    }
 
-    questionWiseResult.push({
-      id: question.id,
-      userAnswer,
-      correctAnswer: question.correctAnswer,
-      status,
-      marksAwarded,
-      markedForReview: false,
-    });
+    return {
+      id: '',
+      attempt_id: '',
+      question_id: q.id,
+      question_index: idx,
+      selected_answer: selectedAnswer,
+      is_correct: isCorrect,
+      time_spent_seconds: 0,
+      marked_for_review: false,
+      is_answered: true,
+    };
   });
 
-  const attempted = correct + wrong;
-  const percentage = Math.round((score / paper.totalMarks) * 100);
-
-  return {
-    id: `attempt_${Date.now()}`,
-    paperName: paper.paperName,
-    attemptedOn: new Date().toISOString(),
-    timeTaken,
-    totalQuestions: paper.totalQuestions,
-    attempted,
-    correct,
-    wrong,
-    skipped,
-    score: Math.max(0, score),
-    totalMarks: paper.totalMarks,
-    percentage: Math.max(0, percentage),
-    questionWiseResult,
-  };
+  return { questions: graded, score: Math.max(0, score), correct, incorrect, unanswered };
 }
 
 export function formatTime(seconds: number): string {
   const hrs = Math.floor(seconds / 3600);
   const mins = Math.floor((seconds % 3600) / 60);
   const secs = seconds % 60;
-
   if (hrs > 0) {
-    return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   }
   return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
 }
 
-export function getTimeTakenString(startTime: number, endTime: number): string {
-  const diff = Math.floor((endTime - startTime) / 1000);
-  return formatTime(diff);
+export function calculateSubjectPerformance(
+  questions: QuestionJSON[],
+  attemptQuestions: AttemptQuestion[]
+): SubjectPerformance[] {
+  const subjectMap = new Map<string, { total: number; correct: number; totalTime: number }>();
+
+  attemptQuestions.forEach((aq) => {
+    const q = questions.find(qq => String(qq.id) === String(aq.question_id));
+    if (!q) return;
+    const subject = q.subject || 'Unknown';
+    const existing = subjectMap.get(subject) || { total: 0, correct: 0, totalTime: 0 };
+    existing.total++;
+    if (aq.is_correct) existing.correct++;
+    existing.totalTime += aq.time_spent_seconds;
+    subjectMap.set(subject, existing);
+  });
+
+  return Array.from(subjectMap.entries()).map(([subject, data]) => ({
+    subject,
+    total: data.total,
+    correct: data.correct,
+    accuracy: data.total > 0 ? Math.round((data.correct / data.total) * 100) : 0,
+    avgTime: data.total > 0 ? Math.round(data.totalTime / data.total) : 0,
+  }));
+}
+
+export function calculateTopicPerformance(
+  questions: QuestionJSON[],
+  attemptQuestions: AttemptQuestion[]
+): TopicPerformance[] {
+  const topicMap = new Map<string, { subject: string; total: number; correct: number; totalTime: number }>();
+
+  attemptQuestions.forEach((aq) => {
+    const q = questions.find(qq => String(qq.id) === String(aq.question_id));
+    if (!q) return;
+    const topic = q.topic || 'Unknown';
+    const existing = topicMap.get(topic) || { subject: q.subject || 'Unknown', total: 0, correct: 0, totalTime: 0 };
+    existing.total++;
+    if (aq.is_correct) existing.correct++;
+    existing.totalTime += aq.time_spent_seconds;
+    topicMap.set(topic, existing);
+  });
+
+  return Array.from(topicMap.entries()).map(([topic, data]) => ({
+    topic,
+    subject: data.subject,
+    total: data.total,
+    correct: data.correct,
+    accuracy: data.total > 0 ? Math.round((data.correct / data.total) * 100) : 0,
+    avgTime: data.total > 0 ? Math.round(data.totalTime / data.total) : 0,
+  }));
+}
+
+export function getDifficultyColor(difficulty: string): string {
+  switch (difficulty) {
+    case 'easy': return 'text-green-600 bg-green-100 dark:bg-green-900/30 dark:text-green-400';
+    case 'medium': return 'text-yellow-600 bg-yellow-100 dark:bg-yellow-900/30 dark:text-yellow-400';
+    case 'hard': return 'text-red-600 bg-red-100 dark:bg-red-900/30 dark:text-red-400';
+    default: return 'text-gray-600 bg-gray-100 dark:bg-gray-800 dark:text-gray-400';
+  }
+}
+
+export function getAccuracyColor(accuracy: number): string {
+  if (accuracy >= 80) return 'text-green-600 dark:text-green-400';
+  if (accuracy >= 60) return 'text-yellow-600 dark:text-yellow-400';
+  if (accuracy >= 40) return 'text-orange-600 dark:text-orange-400';
+  return 'text-red-600 dark:text-red-400';
+}
+
+export function getScoreColor(score: number, total: number): string {
+  const pct = (score / total) * 100;
+  return getAccuracyColor(pct);
 }

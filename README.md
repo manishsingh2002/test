@@ -1,0 +1,233 @@
+# SSC CGL Exam Preparation Platform
+
+A professional, full-fledged SSC CGL exam preparation web application. Import AI-generated question papers as JSON, take exams with a real examination interface, analyze performance, learn from mistakes, and improve.
+
+## 🚀 Quick Start
+
+### Local Development
+
+```bash
+npm install
+npm run dev
+```
+
+### Build for Production
+
+```bash
+npm run build
+```
+
+## 🔧 Supabase Setup
+
+### 1. Create a Supabase Project
+
+1. Go to [supabase.com](https://supabase.com) and create a new project
+2. Note your **Project URL** and **anon/public key** from Settings → API
+
+### 2. Run the SQL Schema
+
+1. Go to SQL Editor in your Supabase dashboard
+2. Copy and paste the contents of `supabase/schema.sql`
+3. Run the query
+
+### 3. Configure Environment Variables
+
+Create a `.env` file in the project root:
+
+```env
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-public-key
+```
+
+### 4. Enable Authentication
+
+In Supabase Dashboard → Authentication → Providers:
+- Enable **Email** provider
+- Optionally configure other providers (Google, GitHub, etc.)
+
+## 📦 GitHub Pages Deployment
+
+### 1. Configure Vite Base Path
+
+For GitHub Pages project URLs (e.g., `https://username.github.io/repo-name/`), update `vite.config.js`:
+
+```js
+export default defineConfig({
+  base: '/repo-name/',  // Add this line
+  plugins: [react(), tailwindcss()],
+  // ...
+});
+```
+
+### 2. Add GitHub Secrets
+
+In your repository → Settings → Secrets and variables → Actions, add:
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_ANON_KEY`
+
+### 3. Push to Main
+
+The GitHub Actions workflow will automatically build and deploy to GitHub Pages.
+
+## 🎯 Core Workflow
+
+```
+AI Model → Generate JSON → Copy JSON → Paste in App → Validate → Import → Exam Library → Start Exam → Answer → Submit → Results → Learn → Practice → Improve
+```
+
+## 📋 JSON Schema
+
+```json
+{
+  "exam": "SSC CGL",
+  "paperTitle": "Practice Set 01",
+  "description": "Mixed difficulty practice paper",
+  "durationMinutes": 60,
+  "totalMarks": 100,
+  "negativeMarking": 0.5,
+  "difficulty": "medium",
+  "subjects": ["Quantitative Aptitude", "General Intelligence & Reasoning", "English Comprehension", "General Awareness"],
+  "questions": [
+    {
+      "id": 1,
+      "subject": "Quantitative Aptitude",
+      "topic": "Percentage",
+      "difficulty": "medium",
+      "question": "What is 20% of 450?",
+      "options": ["80", "90", "100", "110"],
+      "correctAnswer": "90",
+      "answerIndex": 1,
+      "marks": 2,
+      "negativeMarks": 0.5,
+      "hint": "Convert percentage to fraction",
+      "solution": "20% of 450 = 20/100 × 450 = 90",
+      "shortcut": "10% of 450 = 45, so 20% = 90",
+      "learningSuggestion": "Practice percentage conversions"
+    }
+  ]
+}
+```
+
+### Required Fields
+- `paperTitle`, `durationMinutes`, `totalMarks`, `questions` array
+- Each question: `id`, `question`, `options` (array), `correctAnswer`, `answerIndex`, `marks`
+
+### Optional Fields
+- `description`, `negativeMarking`, `difficulty`, `subjects`
+- Per question: `subject`, `topic`, `subtopic`, `difficulty`, `hint`, `solution`, `method`, `shortcut`, `learningSuggestion`, `timeEstimate`, `tags`, `source`, `image`, `formula`, `table`, `passage`
+
+## 🏗️ Architecture
+
+```
+src/
+├── components/
+│   ├── AuthGate.tsx          # Authentication UI
+│   ├── Dashboard.tsx         # Main dashboard with tabs
+│   ├── ExamInterface.tsx     # Full exam-taking UI
+│   ├── JsonImporter.tsx      # JSON import + AI prompt generator
+│   └── ResultsPage.tsx       # Results + learning mode
+├── hooks/
+│   └── useAuth.ts            # Authentication hook
+├── lib/
+│   └── supabase.ts           # Supabase client
+├── services/
+│   └── database.ts           # Database operations + localStorage fallback
+├── types/
+│   └── index.ts              # TypeScript types
+├── utils/
+│   ├── demoData.ts           # Demo paper data
+│   ├── grader.ts             # Scoring & analytics
+│   └── validator.ts          # JSON validation
+├── App.tsx                   # Main app component
+├── main.tsx                  # Entry point
+└── index.css                 # Global styles
+```
+
+## ✨ Features
+
+### Paper Management
+- ✅ Paste or upload JSON question papers
+- ✅ Detailed validation with specific error messages
+- ✅ Preview before importing
+- ✅ Duplicate detection
+- ✅ Export papers back to JSON
+- ✅ AI Prompt Generator for creating questions
+
+### Exam Interface
+- ✅ Professional examination portal UI
+- ✅ Countdown timer with warnings
+- ✅ Question palette with status indicators
+- ✅ Subject-grouped navigation
+- ✅ Mark for review
+- ✅ Auto-save progress
+- ✅ Resume after refresh
+- ✅ Keyboard shortcuts
+- ✅ Browser navigation protection
+- ✅ Auto-submit on timer expiry
+
+### Results & Learning
+- ✅ Score summary with KPIs
+- ✅ Performance by subject
+- ✅ Performance by topic
+- ✅ Question-by-question analysis
+- ✅ Hints, solutions, shortcuts
+- ✅ Learning suggestions
+- ✅ Practice weak areas
+
+### Practice Modes
+- ✅ Quick Practice
+- ✅ Topic Practice
+- ✅ Weak Area Practice
+- ✅ Previous Mistakes
+- ✅ Timed Practice
+- ✅ Random Practice
+
+### Mistake Notebook
+- ✅ Auto-tracked incorrect answers
+- ✅ Incorrect count tracking
+- ✅ Solutions and shortcuts
+- ✅ Learning suggestions
+- ✅ Mark as resolved
+
+### Bookmarks
+- ✅ Save important questions
+- ✅ Categories (important, difficult, shortcut, etc.)
+- ✅ Filter by category
+
+### Analytics Dashboard
+- ✅ Total exams, questions, accuracy
+- ✅ Score progress chart
+- ✅ Recent attempts table
+- ✅ Subject and topic analysis
+
+### Authentication
+- ✅ Supabase Auth (Email)
+- ✅ Guest mode (localStorage)
+- ✅ Row Level Security
+- ✅ Persistent sessions
+
+### Responsive Design
+- ✅ Desktop: 3-column exam layout
+- ✅ Tablet: 2-column optimized
+- ✅ Mobile: Single column with drawer navigation
+
+## 🔒 Data Security
+
+- All user data protected by Supabase RLS policies
+- Users can only access their own data
+- No service-role keys in frontend
+- Anon key only (public, safe for client-side)
+
+## 🌐 Deployment
+
+### GitHub Pages
+The project includes a GitHub Actions workflow (`.github/workflows/deploy.yml`) that automatically builds and deploys on push to `main`.
+
+### Environment Variables for CI/CD
+Add these as repository secrets:
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_ANON_KEY`
+
+## 📝 License
+
+MIT
