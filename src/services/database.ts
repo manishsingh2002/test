@@ -1,5 +1,5 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
-import { Paper, Attempt, AttemptQuestion, Bookmark, Mistake, PaperJSON, QuestionJSON } from '../types';
+import type { Paper, Attempt, AttemptQuestion, Bookmark, Mistake, PaperJSON } from '../types';
 
 // ============================================================
 // LocalStorage fallback for when Supabase is not configured
@@ -21,37 +21,49 @@ function lsGet<T>(key: string): T[] {
 }
 
 function lsSet(key: string, data: unknown): void {
-  localStorage.setItem(key, JSON.stringify(data));
+  try {
+    localStorage.setItem(key, JSON.stringify(data));
+  } catch {}
 }
 
 function generateId(): string {
   return `${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 }
 
+// Helper to safely use supabase
+async function sb<T>(fn: () => Promise<T>): Promise<T | null> {
+  if (!isSupabaseConfigured || !supabase) return null;
+  try {
+    return await fn();
+  } catch (e) {
+    console.error('Supabase error:', e);
+    return null;
+  }
+}
+
 // ============================================================
 // Papers Service
 // ============================================================
 export async function getPapers(userId?: string): Promise<Paper[]> {
-  if (isSupabaseConfigured && userId) {
-    const { data, error } = await supabase
-      .from('papers')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false });
-    if (error) { console.error('getPapers error:', error); return lsGet<Paper>(LS_KEYS.papers); }
-    return (data || []) as Paper[];
+  if (isSupabaseConfigured && supabase && userId) {
+    const result = await sb(async () => {
+      const { data, error } = await supabase!.from('papers').select('*').eq('user_id', userId).order('created_at', { ascending: false });
+      if (error) throw error;
+      return (data || []) as Paper[];
+    });
+    if (result) return result;
   }
   return lsGet<Paper>(LS_KEYS.papers);
 }
 
 export async function getPaperById(paperId: string): Promise<Paper | null> {
-  if (isSupabaseConfigured) {
-    const { data, error } = await supabase.from('papers').select('*').eq('id', paperId).single();
-    if (error) {
-      const local = lsGet<Paper>(LS_KEYS.papers).find(p => p.id === paperId);
-      return local || null;
-    }
-    return data as Paper;
+  if (isSupabaseConfigured && supabase) {
+    const result = await sb(async () => {
+      const { data, error } = await supabase!.from('papers').select('*').eq('id', paperId).single();
+      if (error) throw error;
+      return data as Paper;
+    });
+    if (result) return result;
   }
   return lsGet<Paper>(LS_KEYS.papers).find(p => p.id === paperId) || null;
 }
@@ -65,10 +77,13 @@ export async function savePaper(paper: Omit<Paper, 'id' | 'created_at' | 'update
     updated_at: now,
   };
 
-  if (isSupabaseConfigured) {
-    const { data, error } = await supabase.from('papers').insert(newPaper).select().single();
-    if (error) { console.error('savePaper error:', error); }
-    else return data as Paper;
+  if (isSupabaseConfigured && supabase) {
+    const result = await sb(async () => {
+      const { data, error } = await supabase!.from('papers').insert(newPaper).select().single();
+      if (error) throw error;
+      return data as Paper;
+    });
+    if (result) return result;
   }
 
   const papers = lsGet<Paper>(LS_KEYS.papers);
@@ -78,8 +93,11 @@ export async function savePaper(paper: Omit<Paper, 'id' | 'created_at' | 'update
 }
 
 export async function updatePaper(paperId: string, updates: Partial<Paper>): Promise<void> {
-  if (isSupabaseConfigured) {
-    await supabase.from('papers').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', paperId);
+  if (isSupabaseConfigured && supabase) {
+    await sb(async () => {
+      const { error } = await supabase!.from('papers').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', paperId);
+      if (error) throw error;
+    });
     return;
   }
   const papers = lsGet<Paper>(LS_KEYS.papers);
@@ -91,8 +109,11 @@ export async function updatePaper(paperId: string, updates: Partial<Paper>): Pro
 }
 
 export async function deletePaper(paperId: string): Promise<void> {
-  if (isSupabaseConfigured) {
-    await supabase.from('papers').delete().eq('id', paperId);
+  if (isSupabaseConfigured && supabase) {
+    await sb(async () => {
+      const { error } = await supabase!.from('papers').delete().eq('id', paperId);
+      if (error) throw error;
+    });
     return;
   }
   const papers = lsGet<Paper>(LS_KEYS.papers).filter(p => p.id !== paperId);
@@ -100,9 +121,12 @@ export async function deletePaper(paperId: string): Promise<void> {
 }
 
 export async function checkDuplicatePaper(title: string, userId?: string): Promise<Paper | null> {
-  if (isSupabaseConfigured && userId) {
-    const { data } = await supabase.from('papers').select('*').eq('user_id', userId).eq('title', title).limit(1);
-    return data?.[0] as Paper || null;
+  if (isSupabaseConfigured && supabase && userId) {
+    const result = await sb(async () => {
+      const { data } = await supabase!.from('papers').select('*').eq('user_id', userId).eq('title', title).limit(1);
+      return (data?.[0] as Paper) || null;
+    });
+    if (result) return result;
   }
   return lsGet<Paper>(LS_KEYS.papers).find(p => p.title === title) || null;
 }
@@ -111,22 +135,24 @@ export async function checkDuplicatePaper(title: string, userId?: string): Promi
 // Attempts Service
 // ============================================================
 export async function getAttempts(userId?: string): Promise<Attempt[]> {
-  if (isSupabaseConfigured && userId) {
-    const { data, error } = await supabase
-      .from('attempts')
-      .select('*')
-      .eq('user_id', userId)
-      .order('started_at', { ascending: false });
-    if (error) return lsGet<Attempt>(LS_KEYS.attempts);
-    return (data || []) as Attempt[];
+  if (isSupabaseConfigured && supabase && userId) {
+    const result = await sb(async () => {
+      const { data, error } = await supabase!.from('attempts').select('*').eq('user_id', userId).order('started_at', { ascending: false });
+      if (error) throw error;
+      return (data || []) as Attempt[];
+    });
+    if (result) return result;
   }
   return lsGet<Attempt>(LS_KEYS.attempts);
 }
 
 export async function getAttemptsByPaper(paperId: string, userId?: string): Promise<Attempt[]> {
-  if (isSupabaseConfigured && userId) {
-    const { data } = await supabase.from('attempts').select('*').eq('paper_id', paperId).eq('user_id', userId).order('started_at', { ascending: false });
-    return (data || []) as Attempt[];
+  if (isSupabaseConfigured && supabase && userId) {
+    const result = await sb(async () => {
+      const { data } = await supabase!.from('attempts').select('*').eq('paper_id', paperId).eq('user_id', userId).order('started_at', { ascending: false });
+      return (data || []) as Attempt[];
+    });
+    if (result) return result;
   }
   return lsGet<Attempt>(LS_KEYS.attempts).filter(a => a.paper_id === paperId);
 }
@@ -135,13 +161,17 @@ export async function saveAttempt(attempt: Omit<Attempt, 'id'>, questions: Omit<
   const newAttempt: Attempt = { ...attempt, id: generateId() };
   const newQuestions = questions.map(q => ({ ...q, id: generateId(), attempt_id: newAttempt.id }));
 
-  if (isSupabaseConfigured) {
-    const { data, error } = await supabase.from('attempts').insert(newAttempt).select().single();
-    if (!error && data) {
-      const qs = newQuestions.map(q => ({ ...q, attempt_id: data.id }));
-      await supabase.from('attempt_questions').insert(qs);
+  if (isSupabaseConfigured && supabase) {
+    const result = await sb(async () => {
+      const { data, error } = await supabase!.from('attempts').insert(newAttempt).select().single();
+      if (error) throw error;
+      if (data) {
+        const qs = newQuestions.map(q => ({ ...q, attempt_id: data.id }));
+        await supabase!.from('attempt_questions').insert(qs);
+      }
       return data as Attempt;
-    }
+    });
+    if (result) return result;
   }
 
   const attempts = lsGet<Attempt>(LS_KEYS.attempts);
@@ -154,9 +184,12 @@ export async function saveAttempt(attempt: Omit<Attempt, 'id'>, questions: Omit<
 }
 
 export async function getAttemptQuestions(attemptId: string): Promise<AttemptQuestion[]> {
-  if (isSupabaseConfigured) {
-    const { data } = await supabase.from('attempt_questions').select('*').eq('attempt_id', attemptId);
-    return (data || []) as AttemptQuestion[];
+  if (isSupabaseConfigured && supabase) {
+    const result = await sb(async () => {
+      const { data } = await supabase!.from('attempt_questions').select('*').eq('attempt_id', attemptId);
+      return (data || []) as AttemptQuestion[];
+    });
+    if (result) return result;
   }
   return lsGet<AttemptQuestion>(LS_KEYS.attemptQuestions).filter(q => q.attempt_id === attemptId);
 }
@@ -165,18 +198,24 @@ export async function getAttemptQuestions(attemptId: string): Promise<AttemptQue
 // Bookmarks Service
 // ============================================================
 export async function getBookmarks(userId?: string): Promise<Bookmark[]> {
-  if (isSupabaseConfigured && userId) {
-    const { data } = await supabase.from('bookmarks').select('*').eq('user_id', userId).order('created_at', { ascending: false });
-    return (data || []) as Bookmark[];
+  if (isSupabaseConfigured && supabase && userId) {
+    const result = await sb(async () => {
+      const { data } = await supabase!.from('bookmarks').select('*').eq('user_id', userId).order('created_at', { ascending: false });
+      return (data || []) as Bookmark[];
+    });
+    if (result) return result;
   }
   return lsGet<Bookmark>(LS_KEYS.bookmarks);
 }
 
 export async function addBookmark(bookmark: Omit<Bookmark, 'id' | 'created_at'>): Promise<Bookmark> {
   const newBookmark: Bookmark = { ...bookmark, id: generateId(), created_at: new Date().toISOString() };
-  if (isSupabaseConfigured) {
-    const { data } = await supabase.from('bookmarks').insert(newBookmark).select().single();
-    if (data) return data as Bookmark;
+  if (isSupabaseConfigured && supabase) {
+    const result = await sb(async () => {
+      const { data } = await supabase!.from('bookmarks').insert(newBookmark).select().single();
+      return data as Bookmark;
+    });
+    if (result) return result;
   }
   const bookmarks = lsGet<Bookmark>(LS_KEYS.bookmarks);
   bookmarks.unshift(newBookmark);
@@ -185,8 +224,11 @@ export async function addBookmark(bookmark: Omit<Bookmark, 'id' | 'created_at'>)
 }
 
 export async function removeBookmark(bookmarkId: string): Promise<void> {
-  if (isSupabaseConfigured) {
-    await supabase.from('bookmarks').delete().eq('id', bookmarkId);
+  if (isSupabaseConfigured && supabase) {
+    await sb(async () => {
+      const { error } = await supabase!.from('bookmarks').delete().eq('id', bookmarkId);
+      if (error) throw error;
+    });
     return;
   }
   const bookmarks = lsGet<Bookmark>(LS_KEYS.bookmarks).filter(b => b.id !== bookmarkId);
@@ -194,9 +236,12 @@ export async function removeBookmark(bookmarkId: string): Promise<void> {
 }
 
 export async function isBookmarked(paperId: string, questionId: number | string, userId?: string): Promise<boolean> {
-  if (isSupabaseConfigured && userId) {
-    const { data } = await supabase.from('bookmarks').select('id').eq('paper_id', paperId).eq('question_id', String(questionId)).eq('user_id', userId).limit(1);
-    return (data?.length || 0) > 0;
+  if (isSupabaseConfigured && supabase && userId) {
+    const result = await sb(async () => {
+      const { data } = await supabase!.from('bookmarks').select('id').eq('paper_id', paperId).eq('question_id', String(questionId)).eq('user_id', userId).limit(1);
+      return (data?.length || 0) > 0;
+    });
+    if (result !== null) return result;
   }
   return lsGet<Bookmark>(LS_KEYS.bookmarks).some(b => b.paper_id === paperId && String(b.question_id) === String(questionId));
 }
@@ -205,37 +250,42 @@ export async function isBookmarked(paperId: string, questionId: number | string,
 // Mistakes Service
 // ============================================================
 export async function getMistakes(userId?: string): Promise<Mistake[]> {
-  if (isSupabaseConfigured && userId) {
-    const { data } = await supabase.from('mistakes').select('*').eq('user_id', userId).eq('resolved', false).order('last_attempted_at', { ascending: false });
-    return (data || []) as Mistake[];
+  if (isSupabaseConfigured && supabase && userId) {
+    const result = await sb(async () => {
+      const { data } = await supabase!.from('mistakes').select('*').eq('user_id', userId).eq('resolved', false).order('last_attempted_at', { ascending: false });
+      return (data || []) as Mistake[];
+    });
+    if (result) return result;
   }
   return lsGet<Mistake>(LS_KEYS.mistakes).filter(m => !m.resolved);
 }
 
 export async function addOrUpdateMistake(mistake: Omit<Mistake, 'id' | 'incorrect_count' | 'last_attempted_at'>, userId?: string): Promise<void> {
-  if (isSupabaseConfigured && userId) {
-    const { data: existing } = await supabase
-      .from('mistakes')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('paper_id', mistake.paper_id)
-      .eq('question_id', String(mistake.question_id))
-      .eq('resolved', false)
-      .limit(1);
+  if (isSupabaseConfigured && supabase && userId) {
+    await sb(async () => {
+      const { data: existing } = await supabase!
+        .from('mistakes')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('paper_id', mistake.paper_id)
+        .eq('question_id', String(mistake.question_id))
+        .eq('resolved', false)
+        .limit(1);
 
-    if (existing && existing.length > 0) {
-      await supabase.from('mistakes').update({
-        incorrect_count: existing[0].incorrect_count + 1,
-        last_attempted_at: new Date().toISOString(),
-      }).eq('id', existing[0].id);
-    } else {
-      await supabase.from('mistakes').insert({
-        ...mistake,
-        id: generateId(),
-        incorrect_count: 1,
-        last_attempted_at: new Date().toISOString(),
-      });
-    }
+      if (existing && existing.length > 0) {
+        await supabase!.from('mistakes').update({
+          incorrect_count: existing[0].incorrect_count + 1,
+          last_attempted_at: new Date().toISOString(),
+        }).eq('id', existing[0].id);
+      } else {
+        await supabase!.from('mistakes').insert({
+          ...mistake,
+          id: generateId(),
+          incorrect_count: 1,
+          last_attempted_at: new Date().toISOString(),
+        });
+      }
+    });
     return;
   }
 
@@ -261,8 +311,11 @@ export async function addOrUpdateMistake(mistake: Omit<Mistake, 'id' | 'incorrec
 }
 
 export async function resolveMistake(mistakeId: string): Promise<void> {
-  if (isSupabaseConfigured) {
-    await supabase.from('mistakes').update({ resolved: true }).eq('id', mistakeId);
+  if (isSupabaseConfigured && supabase) {
+    await sb(async () => {
+      const { error } = await supabase!.from('mistakes').update({ resolved: true }).eq('id', mistakeId);
+      if (error) throw error;
+    });
     return;
   }
   const mistakes = lsGet<Mistake>(LS_KEYS.mistakes);
@@ -277,12 +330,16 @@ export async function resolveMistake(mistakeId: string): Promise<void> {
 // Session persistence (for exam resume)
 // ============================================================
 export function saveExamSession(session: unknown): void {
-  localStorage.setItem(LS_KEYS.session, JSON.stringify(session));
+  try {
+    localStorage.setItem(LS_KEYS.session, JSON.stringify(session));
+  } catch {}
 }
 
 export function getExamSession(): unknown | null {
-  const data = localStorage.getItem(LS_KEYS.session);
-  return data ? JSON.parse(data) : null;
+  try {
+    const data = localStorage.getItem(LS_KEYS.session);
+    return data ? JSON.parse(data) : null;
+  } catch { return null; }
 }
 
 export function clearExamSession(): void {
@@ -302,6 +359,8 @@ export function downloadJSON(json: string, filename: string): void {
   const a = document.createElement('a');
   a.href = url;
   a.download = filename;
+  document.body.appendChild(a);
   a.click();
+  document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }

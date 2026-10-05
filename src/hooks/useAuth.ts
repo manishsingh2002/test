@@ -18,7 +18,7 @@ export function useAuth() {
   });
 
   useEffect(() => {
-    if (!isSupabaseConfigured) {
+    if (!isSupabaseConfigured || !supabase) {
       setState({ user: null, session: null, loading: false, isGuest: true });
       return;
     }
@@ -30,6 +30,8 @@ export function useAuth() {
         loading: false,
         isGuest: false,
       });
+    }).catch(() => {
+      setState({ user: null, session: null, loading: false, isGuest: true });
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -45,31 +47,45 @@ export function useAuth() {
   }, []);
 
   const signUp = useCallback(async (email: string, password: string, displayName: string) => {
-    if (!isSupabaseConfigured) return { error: { message: 'Supabase not configured' } };
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { display_name: displayName } },
-    });
-    return { data, error };
+    if (!isSupabaseConfigured || !supabase) return { error: { message: 'Supabase not configured' } };
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { data: { display_name: displayName } },
+      });
+      return { data, error };
+    } catch (e: any) {
+      return { error: { message: e.message || 'Sign up failed' }, data: null };
+    }
   }, []);
 
   const signIn = useCallback(async (email: string, password: string) => {
-    if (!isSupabaseConfigured) return { error: { message: 'Supabase not configured' } };
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    return { data, error };
+    if (!isSupabaseConfigured || !supabase) return { error: { message: 'Supabase not configured' } };
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      return { data, error };
+    } catch (e: any) {
+      return { error: { message: e.message || 'Sign in failed' }, data: null };
+    }
   }, []);
 
   const signOut = useCallback(async () => {
-    if (!isSupabaseConfigured) return;
-    await supabase.auth.signOut();
+    if (!isSupabaseConfigured || !supabase) return;
+    try {
+      await supabase.auth.signOut();
+    } catch {}
     setState({ user: null, session: null, loading: false, isGuest: true });
   }, []);
 
   const resetPassword = useCallback(async (email: string) => {
-    if (!isSupabaseConfigured) return { error: { message: 'Supabase not configured' } };
-    const { error } = await supabase.auth.resetPasswordForEmail(email);
-    return { error };
+    if (!isSupabaseConfigured || !supabase) return { error: { message: 'Supabase not configured' } };
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email);
+      return { error };
+    } catch (e: any) {
+      return { error: { message: e.message || 'Reset failed' } };
+    }
   }, []);
 
   return { ...state, signUp, signIn, signOut, resetPassword };

@@ -8,7 +8,7 @@ interface AuthGateProps {
 }
 
 export default function AuthGate({ children }: AuthGateProps) {
-  const { user, loading, isGuest, signIn, signUp, signOut } = useAuth();
+  const { user, loading, signIn, signUp, signOut } = useAuth();
   const [showAuth, setShowAuth] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'signup' | 'forgot'>('login');
   const [email, setEmail] = useState('');
@@ -17,6 +17,11 @@ export default function AuthGate({ children }: AuthGateProps) {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
+
+  // If Supabase is not configured, just render children directly (guest mode)
+  if (!isSupabaseConfigured) {
+    return <>{children}</>;
+  }
 
   if (loading) {
     return (
@@ -28,27 +33,25 @@ export default function AuthGate({ children }: AuthGateProps) {
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(''); setAuthLoading(true);
+    setError('');
+    setAuthLoading(true);
     const { error } = await signIn(email, password);
-    if (error) setError(error.message);
+    if (error) setError(error.message || 'Sign in failed');
+    else setShowAuth(false);
     setAuthLoading(false);
   };
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(''); setAuthLoading(true);
+    setError('');
+    setAuthLoading(true);
     const { error } = await signUp(email, password, name);
-    if (error) setError(error.message);
+    if (error) setError(error.message || 'Sign up failed');
     else setSuccess('Account created! Please check your email to confirm.');
     setAuthLoading(false);
   };
 
-  // If Supabase is not configured, just show the app in guest mode
-  if (!isSupabaseConfigured) {
-    return <>{children}</>;
-  }
-
-  // If user is logged in, show the app
+  // If user is logged in, show the app with a logout button
   if (user) {
     return (
       <>
@@ -65,9 +68,9 @@ export default function AuthGate({ children }: AuthGateProps) {
     );
   }
 
-  // Show auth prompt
+  // Show auth prompt with guest mode option
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Auth Modal */}
       {showAuth && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -76,7 +79,7 @@ export default function AuthGate({ children }: AuthGateProps) {
               <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                 {authMode === 'login' ? 'Welcome Back' : authMode === 'signup' ? 'Create Account' : 'Reset Password'}
               </h2>
-              <button onClick={() => { setShowAuth(false); setError(''); setSuccess(''); }} className="text-gray-400 hover:text-gray-600">✕</button>
+              <button onClick={() => { setShowAuth(false); setError(''); setSuccess(''); }} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
             </div>
 
             {error && <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-400">{error}</div>}
@@ -128,57 +131,38 @@ export default function AuthGate({ children }: AuthGateProps) {
         </div>
       )}
 
-      {/* Landing Page */}
-      <div className="flex-1 flex items-center justify-center p-6">
-        <div className="max-w-lg w-full text-center">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-indigo-100 dark:bg-indigo-900/30 rounded-2xl mb-6">
-            <BookOpen size={32} className="text-indigo-600 dark:text-indigo-400" />
+      {/* Landing / Guest Prompt */}
+      <div className="flex flex-col min-h-screen">
+        {/* Top bar */}
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3">
+          <div className="flex items-center gap-2">
+            <div className="flex items-center justify-center w-8 h-8 bg-indigo-600 rounded-lg">
+              <BookOpen size={18} className="text-white" />
+            </div>
+            <span className="text-lg font-bold text-gray-900 dark:text-white">SSC CGL Prep</span>
           </div>
-          <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-white mb-3">
-            SSC CGL Exam Prep
-          </h1>
-          <p className="text-gray-600 dark:text-gray-400 mb-8 text-lg">
-            Your personal online examination center. Import AI-generated papers, take exams, analyze performance, and learn from mistakes.
+          <div className="flex items-center gap-2">
+            <button onClick={() => { setAuthMode('login'); setShowAuth(true); }} className="flex items-center gap-1 px-3 py-1.5 text-xs bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+              <LogIn size={12} /> Sign In
+            </button>
+            <button onClick={() => { setAuthMode('signup'); setShowAuth(true); }} className="flex items-center gap-1 px-3 py-1.5 text-xs bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">
+              <UserPlus size={12} /> Sign Up
+            </button>
+          </div>
+        </div>
+
+        {/* Main content - always show the app */}
+        <div className="flex-1">
+          {children}
+        </div>
+
+        {/* Guest mode notice */}
+        <div className="px-4 py-2 text-center border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            Running in <strong>Guest Mode</strong> — data saved locally. <button onClick={() => { setAuthMode('signup'); setShowAuth(true); }} className="text-indigo-600 dark:text-indigo-400 hover:underline">Sign up</button> to sync across devices.
           </p>
-
-          <div className="flex flex-col sm:flex-row gap-3 justify-center mb-8">
-            <button onClick={() => { setAuthMode('signup'); setShowAuth(true); }} className="flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 transition-colors">
-              <UserPlus size={18} /> Create Account
-            </button>
-            <button onClick={() => { setAuthMode('login'); setShowAuth(true); }} className="flex items-center justify-center gap-2 px-6 py-3 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 font-semibold rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-              <LogIn size={18} /> Sign In
-            </button>
-          </div>
-
-          <button onClick={() => { setShowAuth(false); }} className="inline-flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors">
-            Continue as Guest <ArrowRight size={14} />
-          </button>
-
-          <div className="mt-12 grid grid-cols-3 gap-4 text-center">
-            <div className="p-3">
-              <div className="text-2xl mb-1">📝</div>
-              <p className="text-xs text-gray-500 dark:text-gray-400">AI → JSON → Import</p>
-            </div>
-            <div className="p-3">
-              <div className="text-2xl mb-1">📊</div>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Analytics & Insights</p>
-            </div>
-            <div className="p-3">
-              <div className="text-2xl mb-1">🎯</div>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Smart Practice</p>
-            </div>
-          </div>
         </div>
       </div>
-
-      {/* Guest mode overlay */}
-      {!showAuth && !user && (
-        <div className="fixed top-4 right-4 z-50">
-          <button onClick={() => { setAuthMode('login'); setShowAuth(true); }} className="flex items-center gap-1 px-3 py-1.5 text-xs bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">
-            <Shield size={12} /> Sign In for Sync
-          </button>
-        </div>
-      )}
     </div>
   );
 }

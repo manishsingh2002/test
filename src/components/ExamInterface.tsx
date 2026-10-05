@@ -26,6 +26,7 @@ export default function ExamInterface({ paper, userId, mode = 'exam', onComplete
   const [isSubmitting, setIsSubmitting] = useState(false);
   const startTimeRef = useRef(startTime);
   const lastQRef = useRef(0);
+  const handleSubmitRef = useRef<(auto?: boolean) => void>(() => {});
 
   // Resume from saved session
   useEffect(() => {
@@ -81,7 +82,8 @@ export default function ExamInterface({ paper, userId, mode = 'exam', onComplete
       setTimeLeft(prev => {
         if (prev <= 1) {
           clearInterval(interval);
-          handleSubmit(true);
+          // Auto-submit when time runs out
+          setTimeout(() => handleSubmitRef.current(true), 0);
           return 0;
         }
         return prev - 1;
@@ -100,6 +102,10 @@ export default function ExamInterface({ paper, userId, mode = 'exam', onComplete
     return () => window.removeEventListener('beforeunload', handler);
   }, []);
 
+  const selectAnswer = (optionIdx: number) => {
+    setAnswers(prev => ({ ...prev, [currentQ]: optionIdx }));
+  };
+
   // Keyboard navigation
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -115,10 +121,6 @@ export default function ExamInterface({ paper, userId, mode = 'exam', onComplete
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [currentQ, questions]);
-
-  const selectAnswer = (optionIdx: number) => {
-    setAnswers(prev => ({ ...prev, [currentQ]: optionIdx }));
-  };
 
   const clearAnswer = () => {
     setAnswers(prev => ({ ...prev, [currentQ]: null }));
@@ -196,6 +198,9 @@ export default function ExamInterface({ paper, userId, mode = 'exam', onComplete
     clearExamSession();
     onComplete(attempt.id);
   }, [answers, qTimes, marked, questions, paper, userId, mode, onComplete, isSubmitting, showSubmit]);
+
+  // Update the ref so the timer can call handleSubmit
+  handleSubmitRef.current = handleSubmit;
 
   const q = questions[currentQ];
   const isTimerWarning = timeLeft < 300;
