@@ -1,58 +1,24 @@
 import { useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { isSupabaseConfigured } from '../lib/supabase';
-import { LogIn, UserPlus, LogOut, Mail, Lock, User, BookOpen, ArrowRight, Shield } from 'lucide-react';
+import { LogIn, UserPlus, LogOut, Mail, Lock, User, BookOpen } from 'lucide-react';
 
 interface AuthGateProps {
   children: React.ReactNode;
 }
 
 export default function AuthGate({ children }: AuthGateProps) {
-  console.log("🚪 AuthGate rendering...");
-  const { user, loading, signIn, signUp, signOut } = useAuth();
+  const { user, signIn, signUp, signOut } = useAuth();
   const [showAuth, setShowAuth] = useState(false);
-  const [authMode, setAuthMode] = useState<'login' | 'signup' | 'forgot'>('login');
+  const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
 
-  console.log("🚪 AuthGate state:", { isSupabaseConfigured, loading, hasUser: !!user });
-
-  // If Supabase is not configured, just render children directly (guest mode)
-  if (!isSupabaseConfigured) {
-    console.log("🚪 Supabase not configured, rendering children in guest mode");
-    return <>{children}</>;
-  }
-
-  if (loading) {
-    console.log("🚪 Loading state, showing spinner");
-    return (
-      <div style={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: '#f9fafb'
-      }}>
-        <div style={{
-          width: '32px',
-          height: '32px',
-          border: '4px solid #4F46E5',
-          borderTopColor: 'transparent',
-          borderRadius: '50%',
-          animation: 'spin 1s linear infinite'
-        }} />
-        <style>{`
-          @keyframes spin {
-            to { transform: rotate(360deg); }
-          }
-        `}</style>
-      </div>
-    );
-  }
+  // ALWAYS render the app - never block on auth
+  // This ensures the app works even if Supabase is down
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -70,43 +36,76 @@ export default function AuthGate({ children }: AuthGateProps) {
     setAuthLoading(true);
     const { error } = await signUp(email, password, name);
     if (error) setError(error.message || 'Sign up failed');
-    else setSuccess('Account created! Please check your email to confirm.');
+    else setShowAuth(false);
     setAuthLoading(false);
   };
 
-  // If user is logged in, show the app with a logout button
-  if (user) {
-    return (
-      <>
-        <div className="fixed top-4 right-4 z-50">
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-500 dark:text-gray-400 hidden sm:block">{user.email}</span>
-            <button onClick={() => signOut()} className="flex items-center gap-1 px-3 py-1.5 text-xs bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
-              <LogOut size={12} /> Logout
-            </button>
-          </div>
-        </div>
-        {children}
-      </>
-    );
-  }
-
-  // Show auth prompt with guest mode option
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      {/* Top bar with auth buttons */}
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-14">
+            <div className="flex items-center gap-2">
+              <div className="flex items-center justify-center w-8 h-8 bg-indigo-600 rounded-lg">
+                <BookOpen size={18} className="text-white" />
+              </div>
+              <span className="text-lg font-bold text-gray-900 dark:text-white">SSC CGL Prep</span>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              {user ? (
+                <>
+                  <span className="text-xs text-gray-500 dark:text-gray-400 hidden sm:block">{user.email}</span>
+                  <button 
+                    onClick={() => signOut()} 
+                    className="flex items-center gap-1 px-3 py-1.5 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                  >
+                    <LogOut size={12} /> Logout
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button 
+                    onClick={() => { setAuthMode('login'); setShowAuth(true); }} 
+                    className="flex items-center gap-1 px-3 py-1.5 text-xs bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                  >
+                    <LogIn size={12} /> Sign In
+                  </button>
+                  <button 
+                    onClick={() => { setAuthMode('signup'); setShowAuth(true); }} 
+                    className="flex items-center gap-1 px-3 py-1.5 text-xs bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                  >
+                    <UserPlus size={12} /> Sign Up
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Auth Modal */}
-      {showAuth && (
+      {showAuth && !user && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 max-w-md w-full shadow-2xl">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                {authMode === 'login' ? 'Welcome Back' : authMode === 'signup' ? 'Create Account' : 'Reset Password'}
+                {authMode === 'login' ? 'Welcome Back' : 'Create Account'}
               </h2>
-              <button onClick={() => { setShowAuth(false); setError(''); setSuccess(''); }} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+              <button 
+                onClick={() => { setShowAuth(false); setError(''); }} 
+                className="text-gray-400 hover:text-gray-600 text-xl"
+              >
+                ✕
+              </button>
             </div>
 
-            {error && <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-400">{error}</div>}
-            {success && <div className="mb-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg text-sm text-green-700 dark:text-green-400">{success}</div>}
+            {error && (
+              <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-400">
+                {error}
+              </div>
+            )}
 
             <form onSubmit={authMode === 'login' ? handleSignIn : handleSignUp} className="space-y-3">
               {authMode === 'signup' && (
@@ -114,7 +113,12 @@ export default function AuthGate({ children }: AuthGateProps) {
                   <label className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1 block">Display Name</label>
                   <div className="relative">
                     <User size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                    <input value={name} onChange={e => setName(e.target.value)} placeholder="Your name" className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 outline-none" />
+                    <input 
+                      value={name} 
+                      onChange={e => setName(e.target.value)} 
+                      placeholder="Your name" 
+                      className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 outline-none" 
+                    />
                   </div>
                 </div>
               )}
@@ -122,31 +126,44 @@ export default function AuthGate({ children }: AuthGateProps) {
                 <label className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1 block">Email</label>
                 <div className="relative">
                   <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                  <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" required className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 outline-none" />
+                  <input 
+                    type="email" 
+                    value={email} 
+                    onChange={e => setEmail(e.target.value)} 
+                    placeholder="you@example.com" 
+                    required 
+                    className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 outline-none" 
+                  />
                 </div>
               </div>
-              {authMode !== 'forgot' && (
-                <div>
-                  <label className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1 block">Password</label>
-                  <div className="relative">
-                    <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                    <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" required minLength={6} className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 outline-none" />
-                  </div>
+              <div>
+                <label className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1 block">Password</label>
+                <div className="relative">
+                  <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input 
+                    type="password" 
+                    value={password} 
+                    onChange={e => setPassword(e.target.value)} 
+                    placeholder="••••••••" 
+                    required 
+                    minLength={6} 
+                    className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 outline-none" 
+                  />
                 </div>
-              )}
-              <button type="submit" disabled={authLoading} className="w-full py-2.5 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-colors">
-                {authLoading ? 'Please wait...' : authMode === 'login' ? 'Sign In' : authMode === 'signup' ? 'Create Account' : 'Send Reset Link'}
+              </div>
+              <button 
+                type="submit" 
+                disabled={authLoading} 
+                className="w-full py-2.5 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+              >
+                {authLoading ? 'Please wait...' : authMode === 'login' ? 'Sign In' : 'Create Account'}
               </button>
             </form>
 
-            <div className="mt-4 text-center text-xs text-gray-500 dark:text-gray-400 space-y-2">
-              {authMode === 'login' && (
-                <>
-                  <p>Don't have an account? <button onClick={() => setAuthMode('signup')} className="text-indigo-600 dark:text-indigo-400 font-medium hover:underline">Sign Up</button></p>
-                  <p><button onClick={() => setAuthMode('forgot')} className="hover:underline">Forgot password?</button></p>
-                </>
-              )}
-              {(authMode === 'signup' || authMode === 'forgot') && (
+            <div className="mt-4 text-center text-xs text-gray-500 dark:text-gray-400">
+              {authMode === 'login' ? (
+                <p>Don't have an account? <button onClick={() => setAuthMode('signup')} className="text-indigo-600 dark:text-indigo-400 font-medium hover:underline">Sign Up</button></p>
+              ) : (
                 <p>Already have an account? <button onClick={() => setAuthMode('login')} className="text-indigo-600 dark:text-indigo-400 font-medium hover:underline">Sign In</button></p>
               )}
             </div>
@@ -154,38 +171,22 @@ export default function AuthGate({ children }: AuthGateProps) {
         </div>
       )}
 
-      {/* Landing / Guest Prompt */}
-      <div className="flex flex-col min-h-screen">
-        {/* Top bar */}
-        <div className="flex items-center justify-between px-4 sm:px-6 py-3">
-          <div className="flex items-center gap-2">
-            <div className="flex items-center justify-center w-8 h-8 bg-indigo-600 rounded-lg">
-              <BookOpen size={18} className="text-white" />
-            </div>
-            <span className="text-lg font-bold text-gray-900 dark:text-white">SSC CGL Prep</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <button onClick={() => { setAuthMode('login'); setShowAuth(true); }} className="flex items-center gap-1 px-3 py-1.5 text-xs bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-              <LogIn size={12} /> Sign In
-            </button>
-            <button onClick={() => { setAuthMode('signup'); setShowAuth(true); }} className="flex items-center gap-1 px-3 py-1.5 text-xs bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">
-              <UserPlus size={12} /> Sign Up
-            </button>
-          </div>
-        </div>
+      {/* Main content - ALWAYS render the app */}
+      <div className="flex-1">
+        {children}
+      </div>
 
-        {/* Main content - always show the app */}
-        <div className="flex-1">
-          {children}
-        </div>
-
-        {/* Guest mode notice */}
+      {/* Guest mode notice */}
+      {!user && (
         <div className="px-4 py-2 text-center border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
           <p className="text-xs text-gray-500 dark:text-gray-400">
-            Running in <strong>Guest Mode</strong> — data saved locally. <button onClick={() => { setAuthMode('signup'); setShowAuth(true); }} className="text-indigo-600 dark:text-indigo-400 hover:underline">Sign up</button> to sync across devices.
+            Running in <strong>Guest Mode</strong> — data saved locally. 
+            <button onClick={() => { setAuthMode('signup'); setShowAuth(true); }} className="text-indigo-600 dark:text-indigo-400 hover:underline ml-1">
+              Sign up
+            </button> to sync across devices.
           </p>
         </div>
-      </div>
+      )}
     </div>
   );
 }
