@@ -35,15 +35,23 @@ npm run build
 Create a `.env` file in the project root:
 
 ```env
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your-anon-public-key
+VITE_SUPABASE_URL=https://astdxzjqapgfdfvzhfdx.supabase.co
+VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFzdGR4empxYXBnZmRmdnpoZmR4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTExNjc1NzgsImV4cCI6MjEwNjc0MzU3OH0.Y2UReMs4-vbEsnIv5Mkb3kk-HrtvZT8KvU7Y-66OCXc
 ```
+
+**Note:** The `.env` file is already configured with your Supabase credentials. The app will automatically connect to your Supabase backend.
 
 ### 4. Enable Authentication
 
 In Supabase Dashboard → Authentication → Providers:
 - Enable **Email** provider
 - Optionally configure other providers (Google, GitHub, etc.)
+
+### 5. Run Database Migrations
+
+Execute the SQL schema in your Supabase SQL Editor:
+- File: `supabase/schema.sql`
+- This creates all necessary tables, indexes, and RLS policies
 
 ## 📦 GitHub Pages Deployment
 

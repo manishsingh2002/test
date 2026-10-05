@@ -8,10 +8,14 @@ import JsonImporter from './components/JsonImporter';
 import ExamInterface from './components/ExamInterface';
 import ResultsPage from './components/ResultsPage';
 import { BookOpen, PlusCircle, ArrowLeft, Home } from 'lucide-react';
+import { useAuth } from './hooks/useAuth';
 
 type View = 'dashboard' | 'import' | 'exam' | 'results';
 
 function AppContent() {
+  const { user } = useAuth();
+  const userId = user?.id;
+
   const [view, setView] = useState<View>('dashboard');
   const [activePaper, setActivePaper] = useState<Paper | null>(null);
   const [examMode, setExamMode] = useState<'exam' | 'practice'>('exam');
@@ -24,10 +28,10 @@ function AppContent() {
     async function loadDemo() {
       if (demoLoaded) return;
       try {
-        const papers = await getPapers();
+        const papers = await getPapers(userId);
         if (papers.length === 0) {
           await savePaper({
-            user_id: 'guest',
+            user_id: userId || 'guest',
             exam: DEMO_PAPER.exam,
             title: DEMO_PAPER.paperTitle,
             description: DEMO_PAPER.description || '',
@@ -48,7 +52,7 @@ function AppContent() {
       setDemoLoaded(true);
     }
     loadDemo();
-  }, [demoLoaded]);
+  }, [demoLoaded, userId]);
 
   const handleStartExam = async (paperId: string) => {
     try {
@@ -133,7 +137,7 @@ function AppContent() {
       <main className="px-4 sm:px-6 lg:px-8 py-6">
         {view === 'dashboard' && (
           <Dashboard
-            userId={undefined}
+            userId={userId}
             onStartExam={handleStartExam}
             onPractice={handleStartPractice}
             onImport={() => setView('import')}
@@ -142,14 +146,14 @@ function AppContent() {
         )}
         {view === 'import' && (
           <JsonImporter
-            userId={undefined}
+            userId={userId}
             onImported={() => { setView('dashboard'); setRefreshKey(k => k + 1); }}
           />
         )}
         {view === 'exam' && activePaper && (
           <ExamInterface
             paper={activePaper}
-            userId={undefined}
+            userId={userId}
             mode={examMode}
             onComplete={handleExamComplete}
             onExit={handleBackToDashboard}
