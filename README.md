@@ -11,11 +11,27 @@ npm install
 npm run dev
 ```
 
+Visit `http://localhost:5173` to see the app.
+
 ### Build for Production
 
 ```bash
 npm run build
 ```
+
+The built files will be in the `dist/` directory.
+
+## 🌐 Deploy to GitHub Pages
+
+Complete deployment guide available in [DEPLOYMENT.md](./DEPLOYMENT.md).
+
+**Quick Steps:**
+1. Create a GitHub repository
+2. Add GitHub Secrets: `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`
+3. Push to `main` branch
+4. GitHub Actions will automatically deploy
+
+Your site will be live at: `https://YOUR_USERNAME.github.io/YOUR_REPO/`
 
 ## 🔧 Supabase Setup
 
