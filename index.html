@@ -6,10 +6,17 @@
     <title>SSC CGL Exam Prep — Your Personal Examination Center</title>
     <meta name="description" content="AI-powered SSC CGL exam preparation platform. Import question papers, take exams, analyze performance, and learn from mistakes." />
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📝</text></svg>" />
-    <!-- Start Single Page Apps for GitHub Pages -->
+    <style>
+      html, body { margin: 0; padding: 0; width: 100%; height: 100%; }
+      html.light, html.light body { background-color: #f9fafb; color: #111827; }
+      html.dark, html.dark body { background-color: #111827; color: #f3f4f6; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+    <!-- SPA routing handler for GitHub Pages -->
     <script type="text/javascript">
-      // Single Page Apps for GitHub Pages
-      // https://github.com/rafgraph/spa-github-pages
       (function(l) {
         if (l.search[1] === '/' ) {
           var decoded = l.search.slice(1).split('&').map(function(s) { 
@@ -21,35 +28,5 @@
         }
       }(window.location))
     </script>
-    <!-- End Single Page Apps for GitHub Pages -->
-    <style>
-      html, body { margin: 0; padding: 0; width: 100%; height: 100%; }
-      html.light, html.light body { background-color: #f9fafb; color: #111827; }
-      html.dark, html.dark body { background-color: #111827; color: #f3f4f6; }
-    </style>
-    <script>
-      (function () {
-        const isInIframe = window.self !== window.top;
-        function applyThemeToDOM(theme) {
-          document.documentElement.classList.remove("light", "dark");
-          document.documentElement.classList.add(theme);
-          document.documentElement.setAttribute("data-theme", theme);
-        }
-        if (isInIframe) {
-          window.addEventListener("message", function (event) {
-            if (event.data && typeof event.data.theme === "string") {
-              const theme = event.data.theme;
-              if (theme === "light" || theme === "dark") applyThemeToDOM(theme);
-            }
-          });
-        } else {
-          applyThemeToDOM("light");
-        }
-      })();
-    </script>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
