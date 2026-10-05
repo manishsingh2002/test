@@ -8,6 +8,7 @@ interface AuthGateProps {
 }
 
 export default function AuthGate({ children }: AuthGateProps) {
+  console.log("🚪 AuthGate rendering...");
   const { user, loading, signIn, signUp, signOut } = useAuth();
   const [showAuth, setShowAuth] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'signup' | 'forgot'>('login');
@@ -18,15 +19,37 @@ export default function AuthGate({ children }: AuthGateProps) {
   const [success, setSuccess] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
 
+  console.log("🚪 AuthGate state:", { isSupabaseConfigured, loading, hasUser: !!user });
+
   // If Supabase is not configured, just render children directly (guest mode)
   if (!isSupabaseConfigured) {
+    console.log("🚪 Supabase not configured, rendering children in guest mode");
     return <>{children}</>;
   }
 
   if (loading) {
+    console.log("🚪 Loading state, showing spinner");
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-        <div className="animate-spin w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full" />
+      <div style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#f9fafb'
+      }}>
+        <div style={{
+          width: '32px',
+          height: '32px',
+          border: '4px solid #4F46E5',
+          borderTopColor: 'transparent',
+          borderRadius: '50%',
+          animation: 'spin 1s linear infinite'
+        }} />
+        <style>{`
+          @keyframes spin {
+            to { transform: rotate(360deg); }
+          }
+        `}</style>
       </div>
     );
   }

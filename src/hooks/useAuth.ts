@@ -18,23 +18,43 @@ export function useAuth() {
   });
 
   useEffect(() => {
+    console.log("🔐 useAuth: Checking Supabase configuration...");
+    console.log("🔐 isSupabaseConfigured:", isSupabaseConfigured);
+    console.log("🔐 supabase client:", supabase ? "Available" : "Not available");
+    
     if (!isSupabaseConfigured || !supabase) {
+      console.log("🔐 Supabase not configured, using guest mode");
       setState({ user: null, session: null, loading: false, isGuest: true });
       return;
     }
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setState({
-        user: session?.user ?? null,
-        session,
-        loading: false,
-        isGuest: false,
-      });
-    }).catch(() => {
+    console.log("🔐 Fetching session...");
+    
+    // Add timeout to prevent hanging
+    const timeoutId = setTimeout(() => {
+      console.warn("⚠️ Session fetch timed out, using guest mode");
       setState({ user: null, session: null, loading: false, isGuest: true });
-    });
+    }, 5000); // 5 second timeout
+
+    supabase.auth.getSession()
+      .then(({ data: { session } }) => {
+        clearTimeout(timeoutId);
+        console.log("✅ Session fetched:", session ? "User logged in" : "No session");
+        setState({
+          user: session?.user ?? null,
+          session,
+          loading: false,
+          isGuest: false,
+        });
+      })
+      .catch((error) => {
+        clearTimeout(timeoutId);
+        console.error("❌ Session fetch failed:", error);
+        setState({ user: null, session: null, loading: false, isGuest: true });
+      });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      console.log("🔄 Auth state changed:", _event);
       setState({
         user: session?.user ?? null,
         session,
@@ -43,7 +63,10 @@ export function useAuth() {
       });
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      clearTimeout(timeoutId);
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signUp = useCallback(async (email: string, password: string, displayName: string) => {

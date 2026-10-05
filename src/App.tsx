@@ -13,8 +13,10 @@ import { useAuth } from './hooks/useAuth';
 type View = 'dashboard' | 'import' | 'exam' | 'results';
 
 function AppContent() {
+  console.log("📱 AppContent rendering...");
   const { user } = useAuth();
   const userId = user?.id;
+  console.log("👤 User:", user ? "Logged in" : "Not logged in");
 
   const [view, setView] = useState<View>('dashboard');
   const [activePaper, setActivePaper] = useState<Paper | null>(null);
@@ -22,6 +24,7 @@ function AppContent() {
   const [lastAttemptId, setLastAttemptId] = useState('');
   const [refreshKey, setRefreshKey] = useState(0);
   const [demoLoaded, setDemoLoaded] = useState(false);
+  console.log("📊 View:", view);
 
   // Load demo paper on first visit
   useEffect(() => {
