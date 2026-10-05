@@ -1,410 +1,188 @@
-import { useState, useEffect } from 'react';
-import { getPaperById, savePaper, getPapers } from './services/database';
-import { DEMO_PAPER } from './utils/demoData';
-import type { Paper } from './types';
-import AuthGate from './components/AuthGate';
-import Dashboard from './components/Dashboard';
-import JsonImporter from './components/JsonImporter';
-import ExamInterface from './components/ExamInterface';
-import ResultsPage from './components/ResultsPage';
-import { BookOpen, PlusCircle, ArrowLeft, Home } from 'lucide-react';
-import { useAuth } from './hooks/useAuth';
+import { useState } from 'react';
+import { useAuth } from '../hooks/useAuth';
+import { LogIn, UserPlus, LogOut, Mail, Lock, User, BookOpen } from 'lucide-react';
 
-type View = 'dashboard' | 'import' | 'exam' | 'results';
+interface AuthGateProps {
+  children: React.ReactNode;
+}
 
-function AppContent() {
-  const { user } = useAuth();
-  const userId = user?.id;
+export default function AuthGate({ children }: AuthGateProps) {
+  const { user, signIn, signUp, signOut } = useAuth();
+  const [showAuth, setShowAuth] = useState(false);
+  const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
+  const [error, setError] = useState('');
+  const [authLoading, setAuthLoading] = useState(false);
 
-  const [view, setView] = useState<View>('dashboard');
-  const [activePaper, setActivePaper] = useState<Paper | null>(null);
-  const [examMode, setExamMode] = useState<'exam' | 'practice'>('exam');
-  const [lastAttemptId, setLastAttemptId] = useState('');
-  const [refreshKey, setRefreshKey] = useState(0);
-  const [demoLoaded, setDemoLoaded] = useState(false);
-
-  useEffect(() => {
-    async function loadDemo() {
-      if (demoLoaded) return;
-      try {
-        const papers = await getPapers(userId);
-        if (papers.length === 0) {
-          await savePaper({
-            user_id: userId || 'guest',
-            exam: DEMO_PAPER.exam,
-            title: DEMO_PAPER.paperTitle,
-            description: DEMO_PAPER.description || '',
-            difficulty: DEMO_PAPER.difficulty || 'medium',
-            duration_minutes: DEMO_PAPER.durationMinutes,
-            total_marks: DEMO_PAPER.totalMarks,
-            negative_marking: DEMO_PAPER.negativeMarking || 0,
-            question_count: DEMO_PAPER.questions.length,
-            subjects: DEMO_PAPER.subjects || [],
-            raw_json: DEMO_PAPER,
-            is_demo: true,
-          });
-          setRefreshKey(k => k + 1);
-        }
-      } catch (e) {
-        console.error('Failed to load demo:', e);
-      }
-      setDemoLoaded(true);
-    }
-
-    loadDemo();
-  }, [demoLoaded, userId]);
-
-  const handleStartExam = async (paperId: string) => {
-    try {
-      const paper = await getPaperById(paperId);
-      if (paper) {
-        setActivePaper(paper);
-        setExamMode('exam');
-        setView('exam');
-      }
-    } catch (e) {
-      console.error('Failed to start exam:', e);
-    }
+  const handleSignIn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setAuthLoading(true);
+    const { error } = await signIn(email, password);
+    if (error) setError(error.message || 'Sign in failed');
+    else setShowAuth(false);
+    setAuthLoading(false);
   };
 
-  const handleStartPractice = async (paperId: string) => {
-    try {
-      const paper = await getPaperById(paperId);
-      if (paper) {
-        setActivePaper(paper);
-        setExamMode('practice');
-        setView('exam');
-      }
-    } catch (e) {
-      console.error('Failed to start practice:', e);
-    }
-  };
-
-  const handleExamComplete = (attemptId: string) => {
-    setLastAttemptId(attemptId);
-    setView('results');
-    setRefreshKey(k => k + 1);
-  };
-
-  const handleBackToDashboard = () => {
-    setView('dashboard');
-    setActivePaper(null);
-    setRefreshKey(k => k + 1);
-  };
-
-  const handleRetake = () => {
-    if (activePaper) {
-      setView('exam');
-    }
+  const handleSignUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setAuthLoading(true);
+    const { error } = await signUp(email, password, name);
+    if (error) setError(error.message || 'Sign up failed');
+    else setShowAuth(false);
+    setAuthLoading(false);
   };
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      {view !== 'exam' && (
-        <nav className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-30">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center justify-between h-14">
-              <button onClick={handleBackToDashboard} className="flex items-center gap-2.5">
-                <div className="flex items-center justify-center w-8 h-8 bg-indigo-600 rounded-lg">
-                  <BookOpen size={18} className="text-white" />
-                </div>
-                <span className="text-lg font-bold text-gray-900 dark:text-white hidden sm:block">SSC CGL Prep</span>
-              </button>
-
-              <div className="flex items-center gap-2">
-                {view === 'import' && (
-                  <button onClick={handleBackToDashboard} className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition">
-                    <ArrowLeft size={16} /> Back
-                  </button>
-                )}
-                {view === 'dashboard' && (
-                  <button onClick={() => setView('import')} className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition">
-                    <PlusCircle size={16} /> Import Paper
-                  </button>
-                )}
-                {view === 'results' && (
-                  <button onClick={handleBackToDashboard} className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition">
-                    <Home size={16} /> Dashboard
-                  </button>
-                )}
+      {/* Top bar with auth buttons */}
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-14">
+            <div className="flex items-center gap-2">
+              <div className="flex items-center justify-center w-8 h-8 bg-indigo-600 rounded-lg">
+                <BookOpen size={18} className="text-white" />
               </div>
+              <span className="text-lg font-bold text-gray-900 dark:text-white">SSC CGL Prep</span>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              {user ? (
+                <>
+                  <span className="text-xs text-gray-500 dark:text-gray-400 hidden sm:block">{user.email}</span>
+                  <button 
+                    onClick={() => signOut()} 
+                    className="flex items-center gap-1 px-3 py-1.5 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                  >
+                    <LogOut size={12} /> Logout
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button 
+                    onClick={() => { setAuthMode('login'); setShowAuth(true); }} 
+                    className="flex items-center gap-1 px-3 py-1.5 text-xs bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                  >
+                    <LogIn size={12} /> Sign In
+                  </button>
+                  <button 
+                    onClick={() => { setAuthMode('signup'); setShowAuth(true); }} 
+                    className="flex items-center gap-1 px-3 py-1.5 text-xs bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                  >
+                    <UserPlus size={12} /> Sign Up
+                  </button>
+                </>
+              )}
             </div>
           </div>
-        </nav>
+        </div>
+      </div>
+
+      {/* Auth Modal */}
+      {showAuth && !user && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 max-w-md w-full shadow-2xl">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                {authMode === 'login' ? 'Welcome Back' : 'Create Account'}
+              </h2>
+              <button 
+                onClick={() => { setShowAuth(false); setError(''); }} 
+                className="text-gray-400 hover:text-gray-600 text-xl"
+              >
+                ✕
+              </button>
+            </div>
+
+            {error && (
+              <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-400">
+                {error}
+              </div>
+            )}
+
+            <form onSubmit={authMode === 'login' ? handleSignIn : handleSignUp} className="space-y-3">
+              {authMode === 'signup' && (
+                <div>
+                  <label className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1 block">Display Name</label>
+                  <div className="relative">
+                    <User size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input 
+                      value={name} 
+                      onChange={e => setName(e.target.value)} 
+                      placeholder="Your name" 
+                      className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 outline-none" 
+                    />
+                  </div>
+                </div>
+              )}
+              <div>
+                <label className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1 block">Email</label>
+                <div className="relative">
+                  <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input 
+                    type="email" 
+                    value={email} 
+                    onChange={e => setEmail(e.target.value)} 
+                    placeholder="you@example.com" 
+                    required 
+                    className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 outline-none" 
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1 block">Password</label>
+                <div className="relative">
+                  <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input 
+                    type="password" 
+                    value={password} 
+                    onChange={e => setPassword(e.target.value)} 
+                    placeholder="••••••••" 
+                    required 
+                    minLength={6} 
+                    className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 outline-none" 
+                  />
+                </div>
+              </div>
+              <button 
+                type="submit" 
+                disabled={authLoading} 
+                className="w-full py-2.5 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+              >
+                {authLoading ? 'Please wait...' : authMode === 'login' ? 'Sign In' : 'Create Account'}
+              </button>
+            </form>
+
+            <div className="mt-4 text-center text-xs text-gray-500 dark:text-gray-400">
+              {authMode === 'login' ? (
+                <p>Don't have an account? <button onClick={() => setAuthMode('signup')} className="text-indigo-600 dark:text-indigo-400 font-medium hover:underline">Sign Up</button></p>
+              ) : (
+                <p>Already have an account? <button onClick={() => setAuthMode('login')} className="text-indigo-600 dark:text-indigo-400 font-medium hover:underline">Sign In</button></p>
+              )}
+            </div>
+          </div>
+        </div>
       )}
 
-      <main className="px-4 sm:px-6 lg:px-8 py-6">
-        {view === 'dashboard' && (
-          <Dashboard
-            userId={userId}
-            onStartExam={handleStartExam}
-            onPractice={handleStartPractice}
-            onImport={() => setView('import')}
-            refreshKey={refreshKey}
-          />
-        )}
+      {/* Main content - ALWAYS render the app */}
+      <div className="flex-1">
+        {children}
+      </div>
 
-        {view === 'import' && (
-          <JsonImporter
-            userId={userId}
-            onImported={() => {
-              setView('dashboard');
-              setRefreshKey(k => k + 1);
-            }}
-          />
-        )}
-
-        {view === 'exam' && activePaper && (
-          <ExamInterface
-            paper={activePaper}
-            userId={userId}
-            mode={examMode}
-            onComplete={handleExamComplete}
-            onExit={handleBackToDashboard}
-          />
-        )}
-
-        {view === 'results' && (
-          <ResultsPage
-            attemptId={lastAttemptId}
-            onRetake={handleRetake}
-            onBack={handleBackToDashboard}
-            onPractice={() => setView('dashboard')}
-          />
-        )}
-      </main>
-
-      {view !== 'exam' && (
-        <footer className="border-t border-gray-200 dark:border-gray-700 mt-8">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 text-center">
-            <p className="text-xs text-gray-400 dark:text-gray-500">
-              SSC CGL Exam Preparation Platform • AI → JSON → Exam → Learn → Improve
-            </p>
-          </div>
-        </footer>
+      {/* Guest mode notice */}
+      {!user && (
+        <div className="px-4 py-2 text-center border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            Running in <strong>Guest Mode</strong> — data saved locally. 
+            <button onClick={() => { setAuthMode('signup'); setShowAuth(true); }} className="text-indigo-600 dark:text-indigo-400 hover:underline ml-1">
+              Sign up
+            </button> to sync across devices.
+          </p>
+        </div>
       )}
     </div>
   );
 }
-
-export default function App() {
-  return (
-    <AuthGate>
-      <AppContent />
-    </AuthGate>
-  );
-}
-
-
-"""""""""""""""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
