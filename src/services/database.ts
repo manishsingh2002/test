@@ -36,8 +36,24 @@ async function sb<T>(fn: () => Promise<T>): Promise<T | null> {
   try {
     return await fn();
   } catch (e) {
-    console.error('Supabase error:', e);
+    // Silently fail - will fall back to localStorage
     return null;
+  }
+}
+
+// Helper for operations that need error reporting
+async function sbWithResult<T>(fn: () => Promise<{ data: T | null; error: any }>): Promise<{ success: boolean; data?: T; error?: string }> {
+  if (!isSupabaseConfigured || !supabase) {
+    return { success: false, error: 'Supabase not configured' };
+  }
+  try {
+    const { data, error } = await fn();
+    if (error) {
+      return { success: false, error: error.message };
+    }
+    return { success: true, data: data as T };
+  } catch (e: any) {
+    return { success: false, error: e.message };
   }
 }
 
@@ -162,18 +178,25 @@ export async function saveAttempt(attempt: Omit<Attempt, 'id'>, questions: Omit<
   const newQuestions = questions.map(q => ({ ...q, id: generateId(), attempt_id: newAttempt.id }));
 
   if (isSupabaseConfigured && supabase) {
-    const result = await sb(async () => {
+    const result = await sbWithResult<Attempt>(async () => {
       const { data, error } = await supabase!.from('attempts').insert(newAttempt).select().single();
-      if (error) throw error;
+      if (error) return { data: null, error };
       if (data) {
         const qs = newQuestions.map(q => ({ ...q, attempt_id: data.id }));
-        await supabase!.from('attempt_questions').insert(qs);
+        const { error: qError } = await supabase!.from('attempt_questions').insert(qs);
+        if (qError) return { data: null, error: qError };
       }
-      return data as Attempt;
+      return { data, error: null };
     });
-    if (result) return result;
+    
+    if (result.success && result.data) {
+      return result.data;
+    }
+    // If cloud save failed, we still save locally but the caller should know
+    // For now, fall through to localStorage
   }
 
+  // Fallback to localStorage
   const attempts = lsGet<Attempt>(LS_KEYS.attempts);
   attempts.unshift(newAttempt);
   lsSet(LS_KEYS.attempts, attempts);

@@ -140,6 +140,7 @@ export interface ExamSession {
   questions: QuestionJSON[];
   startTime: number;
   durationSeconds: number;
+  deadline?: number; // Absolute deadline timestamp for reliable timer
   answers: Record<number, number | null>;
   markedForReview: Record<number, boolean>;
   questionTimes: Record<number, number>;
