@@ -43,6 +43,7 @@ function AppContent() {
             subjects: DEMO_PAPER.subjects || [],
             raw_json: DEMO_PAPER,
             is_demo: true,
+            visibility: 'private',
           });
           setRefreshKey(k => k + 1);
         }

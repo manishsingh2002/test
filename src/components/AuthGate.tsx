@@ -30,9 +30,25 @@ export default function AuthGate({ children }: AuthGateProps) {
     e.preventDefault();
     setError('');
     setAuthLoading(true);
-    const { error } = await signUp(email, password, name);
-    if (error) setError(error.message || 'Sign up failed');
-    else setShowAuth(false);
+    const { data, error } = await signUp(email, password, name);
+    
+    if (error) {
+      setError(error.message || 'Sign up failed');
+    } else if (data && 'requiresEmailConfirmation' in data && data.requiresEmailConfirmation) {
+      // Email confirmation required
+      setError('');
+      alert('Account created! Please check your email to verify your account before signing in.');
+      setShowAuth(false);
+      setEmail('');
+      setPassword('');
+      setName('');
+    } else {
+      // Signup successful and auto-logged in
+      setShowAuth(false);
+      setEmail('');
+      setPassword('');
+      setName('');
+    }
     setAuthLoading(false);
   };
 
