@@ -113,9 +113,19 @@ export default function Dashboard({ userId, onStartExam, onPractice, onImport, r
   ];
 
   return (
-    <div className="max-w-7xl mx-auto">
+    <div className="max-w-7xl mx-auto animate-fade-in">
+      {/* Welcome Header */}
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">
+          Welcome to Your Exam Dashboard
+        </h1>
+        <p className="text-slate-600 dark:text-slate-400">
+          Track your progress, practice weak areas, and ace your SSC CGL exam.
+        </p>
+      </div>
+
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
         <StatCard icon={FileText} label="Papers" value={papers.length} color="indigo" />
         <StatCard icon={Play} label="Attempts" value={totalAttempts} color="blue" />
         <StatCard icon={Target} label="Questions" value={totalQuestions} color="green" />
@@ -141,22 +151,27 @@ export default function Dashboard({ userId, onStartExam, onPractice, onImport, r
       )}
 
       {/* Tabs */}
-      <div className="flex overflow-x-auto gap-1 mb-6 pb-1 border-b border-gray-200 dark:border-gray-700">
-        {tabs.map(tab => (
-          <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium rounded-t-lg whitespace-nowrap transition-colors ${
-              activeTab === tab.id
-                ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 border-b-2 border-indigo-600'
-                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-            }`}>
-            <tab.icon size={16} />
-            {tab.label}
-            {tab.count !== undefined && tab.count > 0 && (
-              <span className="ml-1 px-1.5 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-full text-xs">{tab.count}</span>
-            )}
-          </button>
-        ))}
-      </div>
+      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-card border border-slate-200 dark:border-slate-700 mb-8">
+        <div className="flex overflow-x-auto border-b border-slate-200 dark:border-slate-700">
+          {tabs.map(tab => (
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-2 px-6 py-4 text-sm font-semibold whitespace-nowrap transition-all relative ${
+                activeTab === tab.id
+                  ? 'text-indigo-600 dark:text-indigo-400'
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50'
+              }`}>
+              <tab.icon size={18} />
+              {tab.label}
+              {tab.count !== undefined && tab.count > 0 && (
+                <span className="ml-1 px-2 py-0.5 bg-red-500 text-white rounded-full text-xs font-bold">{tab.count}</span>
+              )}
+              {activeTab === tab.id && (
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-indigo-500 to-purple-600"></div>
+              )}
+            </button>
+          ))}
+        </div>
+        <div className="p-6">
 
       {/* Tab Content */}
       {activeTab === 'library' && (
@@ -188,6 +203,8 @@ export default function Dashboard({ userId, onStartExam, onPractice, onImport, r
       {activeTab === 'analytics' && (
         <AnalyticsTab attempts={attempts} papers={papers} />
       )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -197,20 +214,21 @@ export default function Dashboard({ userId, onStartExam, onPractice, onImport, r
 // ============================================================
 function StatCard({ icon: Icon, label, value, color }: { icon: React.ElementType; label: string; value: string | number; color: string }) {
   const colors: Record<string, string> = {
-    indigo: 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400',
-    blue: 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400',
-    green: 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400',
-    yellow: 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-600 dark:text-yellow-400',
-    purple: 'bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400',
-    red: 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400',
+    indigo: 'from-indigo-500 to-indigo-600',
+    blue: 'from-blue-500 to-blue-600',
+    green: 'from-green-500 to-green-600',
+    yellow: 'from-yellow-500 to-yellow-600',
+    purple: 'from-purple-500 to-purple-600',
+    red: 'from-red-500 to-red-600',
   };
   return (
-    <div className="p-3 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
-      <div className={`inline-flex items-center justify-center w-8 h-8 rounded-lg mb-2 ${colors[color]}`}>
-        <Icon size={16} />
+    <div className="relative p-5 bg-white dark:bg-slate-800 rounded-xl shadow-card hover:shadow-card-hover transition-all duration-200 border border-slate-200 dark:border-slate-700 group">
+      <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${colors[color]} rounded-t-xl`}></div>
+      <div className={`inline-flex items-center justify-center w-10 h-10 rounded-lg mb-3 bg-gradient-to-br ${colors[color]} text-white shadow-md`}>
+        <Icon size={20} />
       </div>
-      <div className="text-xl font-bold text-gray-900 dark:text-white">{value}</div>
-      <div className="text-xs text-gray-500 dark:text-gray-400">{label}</div>
+      <div className="text-2xl font-bold text-slate-900 dark:text-white mb-1">{value}</div>
+      <div className="text-sm text-slate-500 dark:text-slate-400 font-medium">{label}</div>
     </div>
   );
 }
