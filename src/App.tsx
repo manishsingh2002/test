@@ -105,31 +105,31 @@ function AppContent() {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Navigation */}
       {view !== 'exam' && (
-        <nav className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-30 shadow-sm">
+        <nav className="glass sticky top-0 z-30 border-b border-white/20">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex items-center justify-between h-16">
               <button onClick={handleBackToDashboard} className="flex items-center gap-3 group">
-                <div className="flex items-center justify-center w-9 h-9 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg shadow-md group-hover:shadow-lg transition-shadow">
+                <div className="flex items-center justify-center w-10 h-10 rounded-xl shadow-medium group-hover:shadow-strong transition-all" style={{ background: 'var(--gradient-brand)' }}>
                   <BookOpen size={20} className="text-white" />
                 </div>
                 <div className="hidden sm:block">
-                  <span className="text-lg font-bold text-slate-900 dark:text-white">SSC CGL Prep</span>
+                  <span className="text-lg font-bold text-gradient">SSC CGL Prep</span>
                   <span className="block text-xs text-slate-500 dark:text-slate-400 -mt-0.5">Exam Preparation Platform</span>
                 </div>
               </button>
               <div className="flex items-center gap-3">
                 {view === 'import' && (
-                  <button onClick={handleBackToDashboard} className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-all">
+                  <button onClick={handleBackToDashboard} className="btn btn-ghost">
                     <ArrowLeft size={16} /> Back to Dashboard
                   </button>
                 )}
                 {view === 'dashboard' && (
-                  <button onClick={() => setView('import')} className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-indigo-500 to-purple-600 text-white text-sm font-semibold rounded-lg hover:from-indigo-600 hover:to-purple-700 shadow-md hover:shadow-lg transition-all">
+                  <button onClick={() => setView('import')} className="btn btn-primary">
                     <PlusCircle size={16} /> Import Paper
                   </button>
                 )}
                 {view === 'results' && (
-                  <button onClick={handleBackToDashboard} className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-all">
+                  <button onClick={handleBackToDashboard} className="btn btn-ghost">
                     <Home size={16} /> Dashboard
                   </button>
                 )}
@@ -140,7 +140,7 @@ function AppContent() {
       )}
 
       {/* Main Content */}
-      <main className="px-4 sm:px-6 lg:px-8 py-8 min-h-[calc(100vh-16rem)]">
+      <main className="px-4 sm:px-6 lg:px-8 py-8 min-h-[calc(100vh-16rem)]" style={{ background: 'var(--gradient-soft)' }}>
         {view === 'dashboard' && (
           <Dashboard
             userId={userId}
@@ -177,21 +177,21 @@ function AppContent() {
 
       {/* Footer */}
       {view !== 'exam' && (
-        <footer className="border-t border-slate-200 dark:border-slate-700 mt-12 bg-white dark:bg-slate-800">
+        <footer className="glass-panel mt-12">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
             <div className="flex flex-col md:flex-row items-center justify-between gap-4">
               <div className="flex items-center gap-3">
-                <div className="flex items-center justify-center w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg">
+                <div className="flex items-center justify-center w-8 h-8 rounded-lg" style={{ background: 'var(--gradient-brand)' }}>
                   <BookOpen size={16} className="text-white" />
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-slate-900 dark:text-white">SSC CGL Prep</p>
+                  <p className="text-sm font-bold text-gradient">SSC CGL Prep</p>
                   <p className="text-xs text-slate-500 dark:text-slate-400">AI-Powered Exam Preparation</p>
                 </div>
               </div>
               <div className="flex items-center gap-6 text-xs text-slate-500 dark:text-slate-400">
                 <span className="flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span>
+                  <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>
                   All systems operational
                 </span>
                 <span>•</span>
