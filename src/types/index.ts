@@ -69,6 +69,7 @@ export interface Paper {
   created_at: string;
   updated_at: string;
   is_demo?: boolean;
+  visibility: 'private' | 'public';
 }
 
 export interface Attempt {

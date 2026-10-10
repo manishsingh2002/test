@@ -63,7 +63,12 @@ async function sbWithResult<T>(fn: () => Promise<{ data: T | null; error: any }>
 export async function getPapers(userId?: string): Promise<Paper[]> {
   if (isSupabaseConfigured && supabase && userId) {
     const result = await sb(async () => {
-      const { data, error } = await supabase!.from('papers').select('*').eq('user_id', userId).order('created_at', { ascending: false });
+      // Fetch user's own papers AND all public papers
+      const { data, error } = await supabase!
+        .from('papers')
+        .select('*')
+        .or(`user_id.eq.${userId},visibility.eq.public`)
+        .order('created_at', { ascending: false });
       if (error) throw error;
       return (data || []) as Paper[];
     });
@@ -122,6 +127,40 @@ export async function updatePaper(paperId: string, updates: Partial<Paper>): Pro
     papers[idx] = { ...papers[idx], ...updates, updated_at: new Date().toISOString() };
     lsSet(LS_KEYS.papers, papers);
   }
+}
+
+export async function updatePaperVisibility(paperId: string, visibility: 'private' | 'public'): Promise<{ success: boolean; error?: string }> {
+  if (isSupabaseConfigured && supabase) {
+    const result = await sbWithResult<void>(async () => {
+      const { error } = await supabase!
+        .from('papers')
+        .update({ visibility, updated_at: new Date().toISOString() })
+        .eq('id', paperId);
+      return { data: null, error };
+    });
+    
+    if (result.success) {
+      // Update localStorage too
+      const papers = lsGet<Paper>(LS_KEYS.papers);
+      const idx = papers.findIndex(p => p.id === paperId);
+      if (idx >= 0) {
+        papers[idx].visibility = visibility;
+        lsSet(LS_KEYS.papers, papers);
+      }
+      return { success: true };
+    }
+    return { success: false, error: result.error };
+  }
+  
+  // Fallback to localStorage
+  const papers = lsGet<Paper>(LS_KEYS.papers);
+  const idx = papers.findIndex(p => p.id === paperId);
+  if (idx >= 0) {
+    papers[idx].visibility = visibility;
+    lsSet(LS_KEYS.papers, papers);
+    return { success: true };
+  }
+  return { success: false, error: 'Paper not found' };
 }
 
 export async function deletePaper(paperId: string): Promise<void> {

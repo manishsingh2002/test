@@ -7,14 +7,19 @@ import Dashboard from './components/Dashboard';
 import JsonImporter from './components/JsonImporter';
 import ExamInterface from './components/ExamInterface';
 import ResultsPage from './components/ResultsPage';
+import PWAInstallPrompt from './components/PWAInstallPrompt';
+import OfflineIndicator from './components/OfflineIndicator';
+import UpdateAvailable from './components/UpdateAvailable';
 import { BookOpen, PlusCircle, ArrowLeft, Home } from 'lucide-react';
 import { useAuth } from './hooks/useAuth';
+import { usePWA } from './hooks/usePWA';
 
 type View = 'dashboard' | 'import' | 'exam' | 'results';
 
 function AppContent() {
   const { user } = useAuth();
   const userId = user?.id;
+  const { isInstallable, isOffline, install, dismissInstall, updateAvailable, update } = usePWA();
 
   const [view, setView] = useState<View>('dashboard');
   const [activePaper, setActivePaper] = useState<Paper | null>(null);
@@ -43,6 +48,7 @@ function AppContent() {
             subjects: DEMO_PAPER.subjects || [],
             raw_json: DEMO_PAPER,
             is_demo: true,
+            visibility: 'private',
           });
           setRefreshKey(k => k + 1);
         }
@@ -198,6 +204,11 @@ function AppContent() {
           </div>
         </footer>
       )}
+
+      {/* PWA Components */}
+      <OfflineIndicator isOffline={isOffline} />
+      {isInstallable && <PWAInstallPrompt onInstall={install} onDismiss={dismissInstall} />}
+      {updateAvailable && <UpdateAvailable onUpdate={update} />}
     </div>
   );
 }

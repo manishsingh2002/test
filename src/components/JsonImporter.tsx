@@ -84,6 +84,7 @@ export default function JsonImporter({ userId, onImported }: JsonImporterProps) 
         subjects: parsedPaper.subjects || validation.subjects,
         raw_json: parsedPaper,
         is_demo: false,
+        visibility: 'private',
       });
       setJsonInput('');
       setValidation(null);
@@ -114,6 +115,7 @@ export default function JsonImporter({ userId, onImported }: JsonImporterProps) 
         subjects: parsedPaper.subjects || validation!.subjects,
         raw_json: parsedPaper,
         is_demo: false,
+        visibility: 'private',
       });
       setDuplicateWarning('');
       setJsonInput('');

@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Paper, Attempt, Mistake, Bookmark, PaperFilters, BookmarkCategory } from '../types';
-import { getPapers, getAttempts, getMistakes, getBookmarks, deletePaper, removeBookmark, resolveMistake, exportPaperAsJSON, downloadJSON, getAttemptsByPaper } from '../services/database';
+import { getPapers, getAttempts, getMistakes, getBookmarks, deletePaper, removeBookmark, resolveMistake, exportPaperAsJSON, downloadJSON, getAttemptsByPaper, updatePaperVisibility } from '../services/database';
 import { getAccuracyColor, getDifficultyColor, formatTime } from '../utils/grader';
-import { Search, Filter, Play, BookOpen, Trash2, Download, Copy, Eye, AlertTriangle, Bookmark as BookmarkIcon, BookmarkCheck, Target, TrendingUp, Award, Clock, BarChart3, X, CheckCircle, RotateCcw, Zap, Brain, FileText, PlusCircle } from 'lucide-react';
+import { Search, Filter, Play, BookOpen, Trash2, Download, Copy, Eye, AlertTriangle, Bookmark as BookmarkIcon, BookmarkCheck, Target, TrendingUp, Award, Clock, BarChart3, X, CheckCircle, RotateCcw, Zap, Brain, FileText, PlusCircle, Globe, Lock } from 'lucide-react';
 
 // ============================================================
 // Dashboard (Home)
@@ -284,6 +284,16 @@ function LibraryTab({ papers, attempts, search, setSearch, filters, setFilters, 
     navigator.clipboard.writeText(exportPaperAsJSON(paper));
   };
 
+  const handleToggleVisibility = async (paper: Paper) => {
+    const newVisibility = paper.visibility === 'private' ? 'public' : 'private';
+    const result = await updatePaperVisibility(paper.id, newVisibility);
+    if (result.success) {
+      onRefresh();
+    } else {
+      alert(`Failed to update visibility: ${result.error}`);
+    }
+  };
+
   if (papers.length === 0 && !search) {
     return (
       <div className="text-center py-16">
@@ -360,7 +370,14 @@ function LibraryTab({ papers, attempts, search, setSearch, filters, setFilters, 
               <div className="p-4">
                 <div className="flex items-start justify-between mb-2">
                   <h3 className="font-bold text-gray-900 dark:text-white text-sm leading-tight line-clamp-2 flex-1 mr-2">{paper.title}</h3>
-                  {paper.is_demo && <span className="px-2 py-0.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 rounded text-xs font-medium shrink-0">Demo</span>}
+                  <div className="flex gap-1 shrink-0">
+                    {paper.is_demo && <span className="px-2 py-0.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 rounded text-xs font-medium">Demo</span>}
+                    {paper.visibility === 'public' && (
+                      <span className="flex items-center gap-1 px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded text-xs font-medium">
+                        <Globe size={10} /> Public
+                      </span>
+                    )}
+                  </div>
                 </div>
                 {paper.description && <p className="text-xs text-gray-500 dark:text-gray-400 mb-3 line-clamp-2">{paper.description}</p>}
 
@@ -413,6 +430,17 @@ function LibraryTab({ papers, attempts, search, setSearch, filters, setFilters, 
                 </button>
                 <button onClick={() => handleCopyJSON(paper)} className="p-2 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors" title="Copy JSON">
                   <Copy size={12} />
+                </button>
+                <button 
+                  onClick={() => handleToggleVisibility(paper)} 
+                  className={`p-2 rounded-lg transition-colors ${
+                    paper.visibility === 'public' 
+                      ? 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/40' 
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
+                  }`} 
+                  title={paper.visibility === 'public' ? 'Make Private' : 'Make Public'}
+                >
+                  {paper.visibility === 'public' ? <Globe size={12} /> : <Lock size={12} />}
                 </button>
                 <button onClick={() => handleDelete(paper.id)} className="p-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors" title="Delete">
                   <Trash2 size={12} />

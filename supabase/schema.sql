@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS papers (
   subjects TEXT[] DEFAULT '{}',
   raw_json JSONB NOT NULL DEFAULT '{}',
   is_demo BOOLEAN DEFAULT FALSE,
+  visibility TEXT DEFAULT 'private' CHECK (visibility IN ('private', 'public')),
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -40,6 +41,7 @@ CREATE TABLE IF NOT EXISTS papers (
 CREATE INDEX IF NOT EXISTS idx_papers_user_id ON papers(user_id);
 CREATE INDEX IF NOT EXISTS idx_papers_exam ON papers(exam);
 CREATE INDEX IF NOT EXISTS idx_papers_created_at ON papers(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_papers_visibility ON papers(visibility);
 
 -- ============================================================
 -- ATTEMPTS TABLE
@@ -139,10 +141,16 @@ ALTER TABLE bookmarks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE mistakes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 
--- Papers: Users can only see their own papers
+-- Papers: Users can see their own papers + all public papers
+-- Own papers (private or public)
 CREATE POLICY "Users can view own papers" ON papers FOR SELECT USING (user_id = auth.uid()::text);
+-- Public papers visible to everyone (including anonymous users)
+CREATE POLICY "Anyone can view public papers" ON papers FOR SELECT USING (visibility = 'public');
+-- Users can insert their own papers
 CREATE POLICY "Users can insert own papers" ON papers FOR INSERT WITH CHECK (user_id = auth.uid()::text);
+-- Users can only update their own papers
 CREATE POLICY "Users can update own papers" ON papers FOR UPDATE USING (user_id = auth.uid()::text);
+-- Users can only delete their own papers
 CREATE POLICY "Users can delete own papers" ON papers FOR DELETE USING (user_id = auth.uid()::text);
 
 -- Attempts: Users can only see their own attempts
