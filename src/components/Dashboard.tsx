@@ -113,26 +113,36 @@ export default function Dashboard({ userId, onStartExam, onPractice, onImport, r
   ];
 
   return (
-    <div className="max-w-7xl mx-auto">
+    <div className="max-w-7xl mx-auto animate-fadeIn">
+      {/* Welcome Header */}
+      <div className="glass-card rounded-2xl p-8 mb-8">
+        <h1 className="text-3xl font-bold text-gradient mb-2" style={{ fontFamily: 'var(--font-heading)' }}>
+          Welcome to Your Exam Dashboard
+        </h1>
+        <p className="text-slate-600 dark:text-slate-400">
+          Track your progress, practice weak areas, and ace your SSC CGL exam.
+        </p>
+      </div>
+
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
-        <StatCard icon={FileText} label="Papers" value={papers.length} color="indigo" />
-        <StatCard icon={Play} label="Attempts" value={totalAttempts} color="blue" />
-        <StatCard icon={Target} label="Questions" value={totalQuestions} color="green" />
-        <StatCard icon={TrendingUp} label="Accuracy" value={`${overallAccuracy}%`} color="yellow" />
-        <StatCard icon={Award} label="Best Score" value={`${highestScore}%`} color="purple" />
-        <StatCard icon={AlertTriangle} label="Mistakes" value={mistakes.length} color="red" />
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
+        <StatCard icon={FileText} label="Papers" value={papers.length} color="primary" />
+        <StatCard icon={Play} label="Attempts" value={totalAttempts} color="accent" />
+        <StatCard icon={Target} label="Questions" value={totalQuestions} color="success" />
+        <StatCard icon={TrendingUp} label="Accuracy" value={`${overallAccuracy}%`} color="warning" />
+        <StatCard icon={Award} label="Best Score" value={`${highestScore}%`} color="info" />
+        <StatCard icon={AlertTriangle} label="Mistakes" value={mistakes.length} color="danger" />
       </div>
 
       {/* Weak Areas */}
       {weakTopics.length > 0 && (
-        <div className="mb-6 p-4 bg-orange-50 dark:bg-orange-900/10 border border-orange-200 dark:border-orange-800 rounded-xl">
-          <h3 className="text-sm font-bold text-orange-800 dark:text-orange-300 mb-2 flex items-center gap-2">
+        <div className="glass-card rounded-xl p-4 mb-6" style={{ borderColor: 'var(--color-warning)', borderWidth: '1px' }}>
+          <h3 className="text-sm font-bold mb-2 flex items-center gap-2" style={{ color: 'var(--color-warning)' }}>
             <Brain size={16} /> Weak Areas — Focus Here
           </h3>
           <div className="flex flex-wrap gap-2">
             {weakTopics.map(wt => (
-              <span key={wt.topic} className="px-3 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 rounded-full text-xs font-medium">
+              <span key={wt.topic} className="badge badge-warning">
                 {wt.topic} ({wt.count} mistakes)
               </span>
             ))}
@@ -141,22 +151,27 @@ export default function Dashboard({ userId, onStartExam, onPractice, onImport, r
       )}
 
       {/* Tabs */}
-      <div className="flex overflow-x-auto gap-1 mb-6 pb-1 border-b border-gray-200 dark:border-gray-700">
-        {tabs.map(tab => (
-          <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium rounded-t-lg whitespace-nowrap transition-colors ${
-              activeTab === tab.id
-                ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 border-b-2 border-indigo-600'
-                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-            }`}>
-            <tab.icon size={16} />
-            {tab.label}
-            {tab.count !== undefined && tab.count > 0 && (
-              <span className="ml-1 px-1.5 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-full text-xs">{tab.count}</span>
-            )}
-          </button>
-        ))}
-      </div>
+      <div className="glass-card rounded-2xl mb-8 overflow-hidden">
+        <div className="flex overflow-x-auto border-b border-white/20">
+          {tabs.map(tab => (
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-2 px-6 py-4 text-sm font-semibold whitespace-nowrap transition-all relative ${
+                activeTab === tab.id
+                  ? 'text-primary'
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-white/10'
+              }`}>
+              <tab.icon size={18} />
+              {tab.label}
+              {tab.count !== undefined && tab.count > 0 && (
+                <span className="ml-1 badge badge-danger">{tab.count}</span>
+              )}
+              {activeTab === tab.id && (
+                <div className="absolute bottom-0 left-0 right-0 h-0.5" style={{ background: 'var(--gradient-brand)' }}></div>
+              )}
+            </button>
+          ))}
+        </div>
+        <div className="p-6">
 
       {/* Tab Content */}
       {activeTab === 'library' && (
@@ -188,6 +203,8 @@ export default function Dashboard({ userId, onStartExam, onPractice, onImport, r
       {activeTab === 'analytics' && (
         <AnalyticsTab attempts={attempts} papers={papers} />
       )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -196,21 +213,27 @@ export default function Dashboard({ userId, onStartExam, onPractice, onImport, r
 // Stat Card
 // ============================================================
 function StatCard({ icon: Icon, label, value, color }: { icon: React.ElementType; label: string; value: string | number; color: string }) {
-  const colors: Record<string, string> = {
-    indigo: 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400',
-    blue: 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400',
-    green: 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400',
-    yellow: 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-600 dark:text-yellow-400',
-    purple: 'bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400',
-    red: 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400',
+  const colorMap: Record<string, string> = {
+    primary: 'var(--color-primary)',
+    accent: 'var(--color-accent)',
+    success: 'var(--color-success)',
+    warning: 'var(--color-warning)',
+    info: 'var(--color-info)',
+    danger: 'var(--color-danger)',
   };
+  
+  const bgColor = colorMap[color] || colorMap.primary;
+  
   return (
-    <div className="p-3 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
-      <div className={`inline-flex items-center justify-center w-8 h-8 rounded-lg mb-2 ${colors[color]}`}>
-        <Icon size={16} />
+    <div className="glass-card rounded-xl p-5 hover:shadow-medium transition-all duration-200 group">
+      <div 
+        className="inline-flex items-center justify-center w-10 h-10 rounded-lg mb-3 shadow-soft"
+        style={{ background: bgColor }}
+      >
+        <Icon size={20} className="text-white" />
       </div>
-      <div className="text-xl font-bold text-gray-900 dark:text-white">{value}</div>
-      <div className="text-xs text-gray-500 dark:text-gray-400">{label}</div>
+      <div className="text-2xl font-bold mb-1" style={{ color: 'var(--color-text)' }}>{value}</div>
+      <div className="text-sm font-medium" style={{ color: 'var(--color-text-muted)' }}>{label}</div>
     </div>
   );
 }
