@@ -18,28 +18,15 @@ export function useAuth() {
   });
 
   useEffect(() => {
-    console.log("🔐 useAuth: Checking Supabase configuration...");
-    console.log("🔐 isSupabaseConfigured:", isSupabaseConfigured);
-    console.log("🔐 supabase client:", supabase ? "Available" : "Not available");
-    
     if (!isSupabaseConfigured || !supabase) {
-      console.log("🔐 Supabase not configured, using guest mode");
       setState({ user: null, session: null, loading: false, isGuest: true });
       return;
     }
 
-    console.log("🔐 Fetching session...");
-    
-    // Add timeout to prevent hanging
-    const timeoutId = setTimeout(() => {
-      console.warn("⚠️ Session fetch timed out, using guest mode");
-      setState({ user: null, session: null, loading: false, isGuest: true });
-    }, 5000); // 5 second timeout
-
+    // Fetch initial session without timeout - let it complete naturally
+    // This prevents authenticated users from being forced into guest mode
     supabase.auth.getSession()
       .then(({ data: { session } }) => {
-        clearTimeout(timeoutId);
-        console.log("✅ Session fetched:", session ? "User logged in" : "No session");
         setState({
           user: session?.user ?? null,
           session,
@@ -48,13 +35,12 @@ export function useAuth() {
         });
       })
       .catch((error) => {
-        clearTimeout(timeoutId);
-        console.error("❌ Session fetch failed:", error);
+        // Only fall back to guest mode if there's an actual error
+        // Don't use timeout-based fallback
         setState({ user: null, session: null, loading: false, isGuest: true });
       });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      console.log("🔄 Auth state changed:", _event);
       setState({
         user: session?.user ?? null,
         session,
@@ -64,13 +50,14 @@ export function useAuth() {
     });
 
     return () => {
-      clearTimeout(timeoutId);
       subscription.unsubscribe();
     };
   }, []);
 
   const signUp = useCallback(async (email: string, password: string, displayName: string) => {
-    if (!isSupabaseConfigured || !supabase) return { error: { message: 'Supabase not configured' } };
+    if (!isSupabaseConfigured || !supabase) {
+      return { error: { message: 'Supabase not configured' }, data: null };
+    }
     try {
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -84,7 +71,9 @@ export function useAuth() {
   }, []);
 
   const signIn = useCallback(async (email: string, password: string) => {
-    if (!isSupabaseConfigured || !supabase) return { error: { message: 'Supabase not configured' } };
+    if (!isSupabaseConfigured || !supabase) {
+      return { error: { message: 'Supabase not configured' }, data: null };
+    }
     try {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       return { data, error };
@@ -97,12 +86,16 @@ export function useAuth() {
     if (!isSupabaseConfigured || !supabase) return;
     try {
       await supabase.auth.signOut();
-    } catch {}
+    } catch {
+      // Ignore sign out errors
+    }
     setState({ user: null, session: null, loading: false, isGuest: true });
   }, []);
 
   const resetPassword = useCallback(async (email: string) => {
-    if (!isSupabaseConfigured || !supabase) return { error: { message: 'Supabase not configured' } };
+    if (!isSupabaseConfigured || !supabase) {
+      return { error: { message: 'Supabase not configured' } };
+    }
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email);
       return { error };

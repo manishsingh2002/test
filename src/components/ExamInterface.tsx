@@ -27,6 +27,7 @@ export default function ExamInterface({ paper, userId, mode = 'exam', onComplete
   const startTimeRef = useRef(startTime);
   const lastQRef = useRef(0);
   const handleSubmitRef = useRef<(auto?: boolean) => void>(() => {});
+  const deadlineRef = useRef<number>(0); // Absolute deadline timestamp
 
   // Resume from saved session
   useEffect(() => {
@@ -36,11 +37,16 @@ export default function ExamInterface({ paper, userId, mode = 'exam', onComplete
       setMarked(saved.markedForReview || {});
       setQTimes(saved.questionTimes || {});
       setCurrentQ(saved.currentQuestion || 0);
+      startTimeRef.current = saved.startTime;
+      // Use saved deadline if available, otherwise calculate from start time
+      deadlineRef.current = saved.deadline || (saved.startTime + (saved.durationSeconds * 1000));
       const elapsed = Math.floor((Date.now() - saved.startTime) / 1000);
       setTimeLeft(Math.max(0, saved.durationSeconds - elapsed));
-      startTimeRef.current = saved.startTime;
+    } else {
+      // New exam - set deadline
+      deadlineRef.current = Date.now() + (paper.duration_minutes * 60 * 1000);
     }
-  }, [paper.id]);
+  }, [paper.id, paper.duration_minutes]);
 
   // Save session periodically
   useEffect(() => {
@@ -51,6 +57,7 @@ export default function ExamInterface({ paper, userId, mode = 'exam', onComplete
         questions,
         startTime: startTimeRef.current,
         durationSeconds: paper.duration_minutes * 60,
+        deadline: deadlineRef.current,
         answers,
         markedForReview: marked,
         questionTimes: qTimes,
@@ -75,20 +82,26 @@ export default function ExamInterface({ paper, userId, mode = 'exam', onComplete
   // Update last question ref
   useEffect(() => { lastQRef.current = currentQ; }, [currentQ]);
 
-  // Timer countdown
+  // Timer countdown - calculate from deadline for reliability
   useEffect(() => {
-    if (isSubmitting) return;
-    const interval = setInterval(() => {
-      setTimeLeft(prev => {
-        if (prev <= 1) {
-          clearInterval(interval);
-          // Auto-submit when time runs out
-          setTimeout(() => handleSubmitRef.current(true), 0);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+    if (isSubmitting || deadlineRef.current === 0) return;
+    
+    const updateTimer = () => {
+      const now = Date.now();
+      const remaining = Math.max(0, Math.floor((deadlineRef.current - now) / 1000));
+      setTimeLeft(remaining);
+      
+      if (remaining <= 0) {
+        // Auto-submit when time runs out
+        handleSubmitRef.current(true);
+      }
+    };
+    
+    // Update immediately
+    updateTimer();
+    
+    // Then update every second
+    const interval = setInterval(updateTimer, 1000);
     return () => clearInterval(interval);
   }, [isSubmitting]);
 
@@ -143,7 +156,11 @@ export default function ExamInterface({ paper, userId, mode = 'exam', onComplete
     }
     setIsSubmitting(true);
 
-    const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
+    // Calculate elapsed time from deadline for accuracy
+    const elapsed = deadlineRef.current > 0 
+      ? Math.floor((Date.now() - startTimeRef.current) / 1000)
+      : Math.floor((Date.now() - startTimeRef.current) / 1000);
+    
     const { questions: gradedQs, score, correct, incorrect, unanswered } = gradeQuestions(questions, answers, paper.negative_marking);
 
     // Add time spent
